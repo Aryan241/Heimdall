@@ -101,17 +101,18 @@ class RemoteSensingHeightDataset(Dataset):
         return len(self.samples)
 
     def _load_height(self, path: Path) -> np.ndarray:
-        if path.suffix == ".npy":
+        if path.suffix.lower() == ".npy":
             return np.load(path).astype(np.float32)
-        elif path.suffix in [".png"]:
-            # Load 16-bit PNG and scale if needed, or just return as float
-            img = Image.open(path)
-            return np.array(img).astype(np.float32)
-        else:
-            # Fallback for tif (rasterio)
+        try:
+            # Using rasterio since heights are often single-channel float32 TIFFs
             import rasterio
             with rasterio.open(path) as src:
                 return src.read(1).astype(np.float32)
+        except Exception:
+            # Fallback to PIL for JPEGs/PNGs if rasterio/GDAL rejects them
+            from PIL import Image
+            img = Image.open(path).convert('L')
+            return np.array(img).astype(np.float32)
 
     def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         img_path, hgt_path = self.samples[idx]
