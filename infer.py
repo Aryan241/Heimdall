@@ -47,6 +47,10 @@ def main() -> int:
         help="Directory to write outputs. Created if it doesn't exist.",
     )
     parser.add_argument(
+        "--reference-dem", type=Path, default=None,
+        help="Path to low-res reference DEM for RANSAC scale calibration (Stage 5).",
+    )
+    parser.add_argument(
         "--model", "-m", choices=["vit-s", "vit-b", "vit-l"], default="vit-b",
         help="Depth Anything V2 backbone size (default: vit-b).",
     )
@@ -121,6 +125,29 @@ def main() -> int:
     log.info("Depth inference complete in %.1fs  |  Output shape: %s", elapsed, depth.shape)
     log.info("Depth stats — min: %.3f  max: %.3f  mean: %.3f  std: %.3f",
              depth.min(), depth.max(), depth.mean(), depth.std())
+
+    # ── Stage 5: Scale Calibration (RANSAC) ──────────────────────────────
+    if args.reference_dem:
+        log.info("Running Stage 5: RANSAC Scale Calibration using %s", args.reference_dem)
+        import torch
+        from heimdall.calibration.ransac import fit_affine_transform, apply_transform
+        
+        # Load DEM using our ingestion loader
+        dem_payload = ingest(args.reference_dem)
+        # Convert to single channel (if loaded as RGB)
+        ref_np = dem_payload.image
+        if ref_np.ndim == 3:
+            ref_np = ref_np.mean(axis=-1)
+            
+        ref_tensor = torch.from_numpy(ref_np).float()
+        depth_tensor = torch.from_numpy(depth).float()
+        
+        scale, shift = fit_affine_transform(depth_tensor, ref_tensor)
+        calibrated_depth_tensor = apply_transform(depth_tensor, scale, shift)
+        depth = calibrated_depth_tensor.numpy()
+        
+        log.info("Calibration applied. New depth stats — min: %.3f  max: %.3f  mean: %.3f",
+                 depth.min(), depth.max(), depth.mean())
 
     # ── Stage 7 (partial): Save outputs ──────────────────────────────────
     out_dir = args.output_dir
