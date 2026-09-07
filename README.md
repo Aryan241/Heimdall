@@ -1,8 +1,4 @@
-# Heimdall - DepthWizard Pipeline 🌍🪄
-
-> **Smart India Hackathon 2026**  
-> **Problem Statement ID:** 26175  
-> **Problem Statement:** DepthWizard - Single-View Height Estimation and 3D Flythrough
+# Heimdall 
 
 Heimdall is an end-to-end software suite that transforms **single-view optical RGB remote-sensing images** into high-precision, metric elevation maps (DSMs) and projects them into a fully navigable, interactive 3D flythrough environment.
 
