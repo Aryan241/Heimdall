@@ -43,6 +43,10 @@ def main() -> int:
         help="Path to input image (PNG/JPG/BMP or GeoTIFF).",
     )
     parser.add_argument(
+        "--weights", type=str, default=None,
+        help="Path to custom Heimdall decoder weights (.pth).",
+    )
+    parser.add_argument(
         "--output-dir", "-o", type=Path, default=Path("outputs"),
         help="Directory to write outputs. Created if it doesn't exist.",
     )
@@ -118,82 +122,104 @@ def main() -> int:
         log.info("CRS: %s  |  Bounds: %s", payload.geo.crs_epsg, payload.geo.bounds)
 
     # ── Stage 2: Depth inference ─────────────────────────────────────────
-    log.info("Running Depth Anything V2 (%s) …", args.model)
+    log.info("Running Depth inference (%s) …", args.model)
     t0 = time.perf_counter()
 
-    depth = predict_depth_tiled(
-        payload.image,
-        model_key=args.model,
-        tile_size=args.tile_size,
-        overlap=args.overlap,
-        device=device,
-    )
+    gsd = 1.0
+    if args.weights:
+        log.info("Loading Custom Fine-Tuned Heimdall Decoder from %s...", args.weights)
+        import torch
+        from heimdall.decoder.model import DomainAdaptationWrapper
+        
+        # Initialize the wrapper and load the trained head weights
+        wrapper = DomainAdaptationWrapper(model_key=args.model, device_str=str(device))
+        wrapper.head.load_state_dict(torch.load(args.weights, map_location='cpu'))
+        wrapper = wrapper.to(device).eval()
+        
+        # The wrapper expects (B, 3, H, W) float tensors in [0, 1]
+        img_tensor = torch.from_numpy(payload.image).float() / 255.0
+        img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0).to(device) # (1, 3, H, W)
+        
+        with torch.no_grad():
+            res = wrapper(img_tensor)
+            # The output is absolute metric height!
+            pred_height = res["pred_height"]
+            
+            # Interpolate to original size if different
+            h, w = payload.image.shape[:2]
+            if pred_height.shape[2:] != (h, w):
+                pred_height = torch.nn.functional.interpolate(
+                    pred_height, size=(h, w), mode="bilinear", align_corners=False
+                )
+                
+        depth = pred_height.squeeze().cpu().numpy()
+        
+        # For mesh export, estimate XY scale
+        from heimdall.calibration.heuristic import estimate_gsd
+        gsd = estimate_gsd(str(args.input))
+        log.info("Custom Decoder inference complete in %.1fs  |  Output shape: %s", time.perf_counter() - t0, depth.shape)
+        log.info("Depth stats (Absolute Metric) — min: %.3f  max: %.3f  mean: %.3f", depth.min(), depth.max(), depth.mean())
+        
+        # We skip Stage 5/6 calibration because the custom wrapper outputs absolute metric height!
+        
+    else:
+        # For a truly impressive high-res visualization, DO NOT downsample. 
+        # A 1024x1024 image will generate 1 million vertices, which WebGL can easily handle.
+        downsample_factor = 1
+        depth = predict_depth_tiled(
+            payload.image,
+            model_key=args.model,
+            tile_size=args.tile_size,
+            overlap=args.overlap,
+            device=device,
+        )
 
-    elapsed = time.perf_counter() - t0
-    log.info("Depth inference complete in %.1fs  |  Output shape: %s", elapsed, depth.shape)
-    log.info("Depth stats — min: %.3f  max: %.3f  mean: %.3f  std: %.3f",
-             depth.min(), depth.max(), depth.mean(), depth.std())
+        elapsed = time.perf_counter() - t0
+        log.info("Depth inference complete in %.1fs  |  Output shape: %s", elapsed, depth.shape)
+        log.info("Depth stats — min: %.3f  max: %.3f  mean: %.3f  std: %.3f",
+                 depth.min(), depth.max(), depth.mean(), depth.std())
 
     out_dir = args.output_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = args.input.stem
 
-    # ── Stage 4: Semantic Segmentation ───────────────────────────────────
-    ground_mask = None
-    if args.use_segmentation:
-        log.info("Running Stage 4: Semantic Segmentation (SegFormer) ...")
-        t_seg = time.perf_counter()
-        from heimdall.segmentation.segformer import GroundSegmenter
-        segmenter = GroundSegmenter(device=device)
-        # Convert RGB numpy to RGB Image for processor
-        ground_mask = segmenter.get_ground_mask(payload.image)
-        elapsed_seg = time.perf_counter() - t_seg
-        log.info("Segmentation complete in %.1fs", elapsed_seg)
-        
-        # Save mask visualization
-        mask_path = out_dir / f"{stem}_ground_mask.png"
-        import matplotlib.pyplot as plt
-        plt.imsave(mask_path, ground_mask.cpu().numpy(), cmap='gray')
-        log.info("✓ Ground mask saved to %s", mask_path)
-
-    # ── Stage 5/6: Scale Calibration ─────────────────────────────────────────
-    gsd = 1.0  # Default scale for X/Y
-    
-    if args.reference_dem:
-        log.info("Running Stage 5: RANSAC Scale Calibration using %s", args.reference_dem)
-        import torch
-        from heimdall.calibration.ransac import fit_affine_transform, apply_transform
-        
-        dem_payload = ingest(args.reference_dem)
-        ref_np = dem_payload.image
-        if ref_np.ndim == 3:
-            ref_np = ref_np.mean(axis=-1)
+    # ── Stage 5/6: Scale Calibration (Only if using relative depth) ─────────────────
+    if not args.weights:
+        if args.reference_dem:
+            log.info("Running Stage 5: RANSAC Scale Calibration using %s", args.reference_dem)
+            import torch
+            from heimdall.calibration.ransac import fit_affine_transform, apply_transform
             
-        ref_tensor = torch.from_numpy(ref_np).float()
-        depth_tensor = torch.from_numpy(depth).float()
-        
-        scale, shift = fit_affine_transform(depth_tensor, ref_tensor, mask=ground_mask)
-        calibrated_depth_tensor = apply_transform(depth_tensor, scale, shift)
-        depth = calibrated_depth_tensor.numpy()
-        
-        log.info("Calibration applied. New depth stats — min: %.3f  max: %.3f  mean: %.3f",
-                 depth.min(), depth.max(), depth.mean())
-    else:
-        log.info("No reference DEM provided. Running Stage 6: Heuristic Calibration (YOLO)...")
-        from heimdall.calibration.heuristic import estimate_gsd
-        
-        # Estimate X/Y scale
-        gsd = estimate_gsd(str(args.input))
-        
-        # Heuristic Z-scale: Normalize depth to [0, 1] and scale to max 30 meters
-        depth_min = depth.min()
-        depth_max = depth.max()
-        if depth_max > depth_min:
-            depth = (depth - depth_min) / (depth_max - depth_min)
-            depth = depth * 30.0  # Assumed max height of 30 meters
-        
-        log.info("Heuristic calibration applied. New depth stats — min: %.3f  max: %.3f  mean: %.3f",
-                 depth.min(), depth.max(), depth.mean())
+            dem_payload = ingest(args.reference_dem)
+            ref_np = dem_payload.image
+            if ref_np.ndim == 3:
+                ref_np = ref_np.mean(axis=-1)
+                
+            ref_tensor = torch.from_numpy(ref_np).float()
+            depth_tensor = torch.from_numpy(depth).float()
+            
+            scale, shift = fit_affine_transform(depth_tensor, ref_tensor, mask=ground_mask)
+            calibrated_depth_tensor = apply_transform(depth_tensor, scale, shift)
+            depth = calibrated_depth_tensor.numpy()
+            
+            log.info("Calibration applied. New depth stats — min: %.3f  max: %.3f  mean: %.3f",
+                     depth.min(), depth.max(), depth.mean())
+        else:
+            log.info("No reference DEM provided. Running Stage 6: Heuristic Calibration (YOLO)...")
+            from heimdall.calibration.heuristic import estimate_gsd
+            
+            # Estimate X/Y scale
+            gsd = estimate_gsd(str(args.input))
+            
+            # Heuristic Z-scale: Normalize depth to [0, 1] and scale to max 30 meters
+            depth_min = depth.min()
+            depth_max = depth.max()
+            if depth_max > depth_min:
+                depth = (depth - depth_min) / (depth_max - depth_min)
+                depth = depth * 30.0  # Assumed max height of 30 meters
+            
+            log.info("Heuristic calibration applied. New depth stats — min: %.3f  max: %.3f  mean: %.3f",
+                     depth.min(), depth.max(), depth.mean())
 
     # ── Stage 7 (partial): Save outputs ──────────────────────────────────
     # Always save 16-bit heightmap
@@ -227,7 +253,7 @@ def main() -> int:
             heightmap=depth,
             rgb_image=payload.image,
             downsample_factor=downsample_factor,
-            z_scale=1.0,  # Already metric if calibrated or heuristically scaled
+            z_scale=2.0,  # Apply 2x Z-exaggeration
             xy_scale=gsd
         )
         ply_path = out_dir / f"{stem}_mesh.ply"

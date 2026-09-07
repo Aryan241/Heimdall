@@ -109,6 +109,7 @@ def predict_depth_tiled(
     tile_size: int = 512,
     overlap: int = 64,
     device: torch.device | None = None,
+    weights_path: str | None = None,
 ) -> np.ndarray:
     """Run depth estimation on a large image by tiling.
 

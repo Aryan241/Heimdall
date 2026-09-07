@@ -39,16 +39,27 @@ function PlyModel({ url }: { url: string }) {
 
 export default function Viewer3D({ modelUrl }: { modelUrl: string }) {
   return (
-    <Canvas shadows camera={{ position: [0, 50, 100], fov: 45 }}>
+    <Canvas shadows camera={{ position: [0, 40, 150], fov: 45 }}>
       <color attach="background" args={['#050505']} />
       <ambientLight intensity={0.5} />
       <directionalLight position={[100, 100, 50]} intensity={1.5} castShadow />
       
-      <Stage environment="city" intensity={0.5} adjustCamera={1.5}>
+      {/* We rotate the mesh -90 degrees on the X axis because Python exports Z-up meshes, but Three.js uses Y-up */}
+      <group position={[0, -20, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <PlyModel url={modelUrl} />
-      </Stage>
+      </group>
       
-      <OrbitControls makeDefault autoRotate autoRotateSpeed={0.5} />
+      {/* 
+        OrbitControls autoRotate provides a cinematic flythrough effect 
+        but instantly gives control back to the user when they click/drag!
+      */}
+      <OrbitControls 
+        makeDefault 
+        autoRotate 
+        autoRotateSpeed={1.5} 
+        enableZoom={true} 
+        enablePan={true} 
+      />
     </Canvas>
   );
 }

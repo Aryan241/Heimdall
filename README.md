@@ -1,125 +1,67 @@
-# Heimdall 🏔️
+# Heimdall - DepthWizard Pipeline 🌍🪄
 
-**Single-View Height Estimation & 3D Flythrough** — SIH Problem Statement 26175
+> **Smart India Hackathon 2026**  
+> **Problem Statement ID:** 26175  
+> **Problem Statement:** DepthWizard - Single-View Height Estimation and 3D Flythrough
 
-> Transform a single RGB remote-sensing image into an elevation map and navigable 3D terrain in the browser.
+Heimdall is an end-to-end software suite that transforms **single-view optical RGB remote-sensing images** into high-precision, metric elevation maps (DSMs) and projects them into a fully navigable, interactive 3D flythrough environment.
 
 ---
 
-## Architecture
+## 🎯 Solution Architecture
 
-```
-RGB Image ─→ [Ingestion & Routing] ─→ [Depth Anything V2 (frozen)] ─→ Relative Depth Map
-                   │                                                          │
-                   ├─ GeoTIFF? ──→ [Scale Calibration via SRTM/GLO-30] ──→ Absolute DSM
-                   │                                                          │
-                   └─ Plain?   ──→ [Heuristic Scale via Object Detection] ──→ Relative DSM
-                                                                              │
-                                                              [Mesh Generation + RGB Drape]
-                                                                              │
-                                                        [CesiumJS / Three.js Flythrough Viewer]
-```
+This project is built to explicitly solve the two core deliverables of the hackathon:
 
-### Pipeline Stages
+### 1. Elevation Estimation Module (Python Backend)
+A robust command-line inference engine (`infer.py`) powered by a fine-tuned Depth Anything V2 backbone. 
+- **Input Adaptability:** Natively ingests both non-georeferenced imagery (JPG, PNG) and spatially aware formats (GeoTIFF) using `rasterio`.
+- **Absolute Scale Calibration (Fine-Tuned):** Features a custom `DomainAdaptationWrapper` that can load fine-tuned decoder weights to predict **absolute metric heights** directly from the image, completely bypassing heuristic calibration!
+- **Geospatial Export:** Automatically outputs a high-fidelity Digital Surface Model (DSM). If a GeoTIFF is provided, the output is a single-band **GeoTIFF** preserving the original Coordinate Reference System (CRS). It also exports a `.ply` 3D mesh for web rendering.
 
-| Stage | Module | Description | Status |
-|-------|--------|-------------|--------|
-| 1 | `heimdall/ingestion/` | Input detection, routing, tiling | ✅ Done |
-| 2 | `heimdall/depth/` | Depth Anything V2 inference (frozen backbone) | ✅ Done |
-| 3 | `heimdall/decoder/` | Decoder-only fine-tuning on DFC2019/ISPRS | 🔲 Planned |
-| 4 | `heimdall/segmentation/` | Semantic segmentation (ground/building/veg) | 🔲 Planned |
-| 5 | `heimdall/calibration/` | RANSAC scale calibration vs. coarse DEM | 🔲 Planned |
-| 6 | `heimdall/scale_heuristic/` | Object-based scale for non-georef images | 🔲 Planned |
-| 7 | `heimdall/output/` | GeoTIFF / 16-bit PNG output | ✅ Done |
-| 8 | `heimdall/mesh/` | Triangulated 3D mesh + RGB texture drape | 🔲 Planned |
-| 9 | `frontend/` | CesiumJS + Three.js flythrough viewer | 🔲 Planned |
-| 10 | `heimdall/evaluation/` | Stratified RMSE/MAE evaluation harness | 🔲 Planned |
+### 2. Interactive Visualization Platform (Next.js Web UI)
+A user-friendly, standalone web application (`heimdall-web/`) designed for seamless evaluation and interaction.
+- **Integrated Next.js API:** Direct browser-to-backend communication via a dedicated API route, streamlining file uploads and mesh generation.
+- **1-Click Processing:** Users can drag-and-drop satellite imagery directly into the browser to trigger the Python processing pipeline on the backend.
+- **Cinematic 3D Flythrough:** Once meshed, the UI dynamically loads the terrain using WebGL (Three.js), enabling a 360-degree interactive orbital flythrough of the projected structural heights.
+- **Enhanced WebGL Resolution:** Generates dense, full-resolution 3D meshes (up to 1M vertices) with a 2x Z-exaggeration to dramatically highlight structural visibility.
 
-## Quick Start
+---
 
-### 1. Install PyTorch (platform-specific)
+## 🚀 Getting Started
 
-See [INSTALL_PYTORCH.md](INSTALL_PYTORCH.md) for your platform.
+### Prerequisites
+- Python 3.10+
+- Node.js 18+
+- PyTorch (with MPS/CUDA support recommended for fast inference)
 
+### 1. Install Backend Dependencies
 ```bash
-# macOS (Apple Silicon):
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-
-# Ubuntu (CUDA 11.8):
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-```
-
-### 2. Install dependencies
-
-```bash
+cd Heimdall
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Run inference
-
+### 2. Run the Web Application
 ```bash
-# Basic — uses ViT-B, auto-detects device (MPS on Mac, CUDA on Linux)
-python infer.py --input path/to/image.jpg --output-dir outputs/
-
-# ViT-Large backbone for higher quality
-python infer.py --input path/to/image.jpg --output-dir outputs/ --model vit-l
-
-# GeoTIFF input — will also produce a GeoTIFF depth output
-python infer.py --input path/to/scene.tif --output-dir outputs/
-
-# Force CPU / increase verbosity
-python infer.py --input path/to/image.jpg -o outputs/ --device cpu -v
+cd heimdall-web
+npm install
+npm run dev
 ```
 
-### Outputs
+### 3. Usage
+1. Open your browser and navigate to `http://localhost:3000`.
+2. Click **"Drop Satellite Image Here"** to upload an optical image (JPG, PNG, TIFF).
+3. Click **"Process Pipeline"**.
+4. The system will upload the image, run the PyTorch elevation extraction, generate a dense 3D mesh, and instantly load it into the interactive viewer for you to navigate!
 
-| File | Description |
-|------|-------------|
-| `*_depth16.png` | 16-bit grayscale heightmap (0–65535) |
-| `*_depth_vis.png` | Colorized depth visualization (inferno colormap) |
-| `*_depth.npy` | Raw float32 depth array for downstream processing |
-| `*_depth.tif` | GeoTIFF depth (georeferenced inputs only) |
+---
 
-## Project Structure
+## 🛠 Tech Stack
+- **AI / Computer Vision:** PyTorch, Depth Anything V2, Hugging Face Transformers
+- **Geospatial Processing:** Rasterio, Trimesh, NumPy
+- **Frontend / Visualization:** Next.js, React, Three.js (`@react-three/fiber`), Tailwind CSS
 
-```
-Heimdall/
-├── infer.py                    # Main CLI entry point (Stage 1+2+7)
-├── requirements.txt            # Platform-agnostic deps
-├── INSTALL_PYTORCH.md          # Platform-specific PyTorch install
-├── heimdall/
-│   ├── device.py               # Device detection (CUDA/MPS/CPU)
-│   ├── ingestion/
-│   │   ├── loader.py           # GeoTIFF/plain image detection & loading
-│   │   └── tiling.py           # Image tiling & stitching
-│   ├── depth/
-│   │   └── depth_anything.py   # Depth Anything V2 inference
-│   ├── decoder/                # (Stage 3) Fine-tuned decoder head
-│   ├── segmentation/           # (Stage 4) Semantic segmentation
-│   ├── calibration/            # (Stage 5) Scale calibration
-│   ├── scale_heuristic/        # (Stage 6) Object-based scaling
-│   ├── output/
-│   │   └── writers.py          # Depth output writers
-│   ├── mesh/                   # (Stage 8) 3D mesh generation
-│   └── evaluation/             # (Stage 10) Stratified evaluation
-├── frontend/                   # (Stage 9) CesiumJS + Three.js viewer
-│   ├── cesium/
-│   ├── threejs/
-│   └── shared/
-├── configs/                    # Hydra/YAML configs
-├── scripts/                    # Utility scripts
-├── tests/                      # Test suite
-├── data/                       # (gitignored) Datasets
-├── checkpoints/                # (gitignored) Model weights
-└── outputs/                    # (gitignored) Pipeline outputs
-```
+---
 
-## Hardware Requirements
-
-- **Inference (Mac):** Apple Silicon with MPS — works with ViT-B at ~512×512. ViT-L needs ≥16GB unified memory.
-- **Inference (Linux):** Any CUDA GPU with ≥4GB VRAM for ViT-B, ≥8GB for ViT-L.
-- **Training (Stage 3):** Ubuntu workstation — parallel single-GPU jobs across GTX 1080 / RTX 3070.
-
-## License
-
-MIT
+*This project was developed for the SIH 2026 Hackathon to bridge the domain gap between natural egocentric depth models and top-down remote sensing elevation requirements.*
