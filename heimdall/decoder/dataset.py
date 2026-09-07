@@ -44,26 +44,34 @@ class RemoteSensingHeightDataset(Dataset):
         self.hgt_dir = self.dataset_dir / split / "heights"
         
         if not self.img_dir.exists():
-            logger.warning("Image directory %s not found. (Expected if running dummy test)", self.img_dir)
-            self.samples = []
-        else:
-            # Match image files with height files by stem
-            img_files = sorted(list(self.img_dir.glob("*.*")))
-            self.samples = []
-            for img_path in img_files:
-                # Find matching height file (could be .png, .tif, .npy)
-                stem = img_path.stem
-                hgt_path = None
-                for ext in [".npy", ".png", ".tif", ".tiff"]:
-                    candidate = self.hgt_dir / f"{stem}{ext}"
-                    if candidate.exists():
-                        hgt_path = candidate
-                        break
+            # Fallback for flat dataset structures without a train/val split folder
+            fallback_img_dir = self.dataset_dir / "images"
+            fallback_hgt_dir = self.dataset_dir / "heights"
+            if fallback_img_dir.exists():
+                self.img_dir = fallback_img_dir
+                self.hgt_dir = fallback_hgt_dir
+            else:
+                logger.warning("Image directory %s not found. (Expected if running dummy test)", self.img_dir)
+                self.samples = []
+                return
                 
-                if hgt_path:
-                    # Optional: Check if filename contains strata string if filtering
-                    if self.strata is None or self.strata.lower() in stem.lower():
-                        self.samples.append((img_path, hgt_path))
+        # Match image files with height files by stem
+        img_files = sorted(list(self.img_dir.glob("*.*")))
+        self.samples = []
+        for img_path in img_files:
+            # Find matching height file (could be .png, .tif, .npy)
+            stem = img_path.stem
+            hgt_path = None
+            for ext in [".npy", ".png", ".tif", ".tiff"]:
+                candidate = self.hgt_dir / f"{stem}{ext}"
+                if candidate.exists():
+                    hgt_path = candidate
+                    break
+            
+            if hgt_path:
+                # Optional: Check if filename contains strata string if filtering
+                if self.strata is None or self.strata.lower() in stem.lower():
+                    self.samples.append((img_path, hgt_path))
                     
         logger.info("Loaded %d paired samples from %s (split=%s, strata=%s)", 
                     len(self.samples), dataset_dir, split, strata)
