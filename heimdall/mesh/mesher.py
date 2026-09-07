@@ -15,7 +15,8 @@ def heightmap_to_mesh(
     heightmap: np.ndarray, 
     rgb_image: np.ndarray, 
     downsample_factor: int = 2,
-    z_scale: float = 1.0
+    z_scale: float = 1.0,
+    xy_scale: float = 1.0
 ) -> trimesh.Trimesh:
     """
     Converts a heightmap and an RGB image into a 3D mesh.
@@ -26,11 +27,14 @@ def heightmap_to_mesh(
         downsample_factor: Int > 0 to reduce mesh density (1 = native resolution, 2 = half res, etc.)
                            Native resolution creates massive .ply files that crash viewers.
         z_scale: Multiplier for the Z axis (height).
+        xy_scale: Multiplier for the X and Y axes (meters per pixel).
         
     Returns:
         trimesh.Trimesh object.
     """
     logger.info("Generating 3D mesh (downsample=%d)...", downsample_factor)
+    
+    orig_rows, orig_cols = heightmap.shape
     
     # Downsample the arrays to save memory/disk space
     if downsample_factor > 1:
@@ -44,9 +48,10 @@ def heightmap_to_mesh(
     rows, cols = h_sampled.shape
     
     # Generate X, Y coordinates
-    # We center the mesh around 0,0 for easier viewing
-    x_lin = np.linspace(-cols/2, cols/2, cols)
-    y_lin = np.linspace(-rows/2, rows/2, rows)
+    # We center the mesh around 0,0 for easier viewing.
+    # We use original dims to ensure physical size remains constant regardless of downsampling.
+    x_lin = np.linspace(-orig_cols/2, orig_cols/2, cols) * xy_scale
+    y_lin = np.linspace(-orig_rows/2, orig_rows/2, rows) * xy_scale
     xx, yy = np.meshgrid(x_lin, y_lin)
     
     # Invert Y so the image isn't flipped upside down in 3D space

@@ -31,3 +31,4 @@ tabulate>=0.9
 
 # ---------- Optional: visualization / debugging ----------
 matplotlib>=3.7
+ultralytics>=8.0.0

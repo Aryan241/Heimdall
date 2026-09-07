@@ -156,7 +156,9 @@ def main() -> int:
         plt.imsave(mask_path, ground_mask.cpu().numpy(), cmap='gray')
         log.info("✓ Ground mask saved to %s", mask_path)
 
-    # ── Stage 5: Scale Calibration (RANSAC) ──────────────────────────────
+    # ── Stage 5/6: Scale Calibration ─────────────────────────────────────────
+    gsd = 1.0  # Default scale for X/Y
+    
     if args.reference_dem:
         log.info("Running Stage 5: RANSAC Scale Calibration using %s", args.reference_dem)
         import torch
@@ -175,6 +177,22 @@ def main() -> int:
         depth = calibrated_depth_tensor.numpy()
         
         log.info("Calibration applied. New depth stats — min: %.3f  max: %.3f  mean: %.3f",
+                 depth.min(), depth.max(), depth.mean())
+    else:
+        log.info("No reference DEM provided. Running Stage 6: Heuristic Calibration (YOLO)...")
+        from heimdall.calibration.heuristic import estimate_gsd
+        
+        # Estimate X/Y scale
+        gsd = estimate_gsd(str(args.input))
+        
+        # Heuristic Z-scale: Normalize depth to [0, 1] and scale to max 30 meters
+        depth_min = depth.min()
+        depth_max = depth.max()
+        if depth_max > depth_min:
+            depth = (depth - depth_min) / (depth_max - depth_min)
+            depth = depth * 30.0  # Assumed max height of 30 meters
+        
+        log.info("Heuristic calibration applied. New depth stats — min: %.3f  max: %.3f  mean: %.3f",
                  depth.min(), depth.max(), depth.mean())
 
     # ── Stage 7 (partial): Save outputs ──────────────────────────────────
@@ -209,7 +227,8 @@ def main() -> int:
             heightmap=depth,
             rgb_image=payload.image,
             downsample_factor=downsample_factor,
-            z_scale=1.0  # Already metric if calibrated
+            z_scale=1.0,  # Already metric if calibrated or heuristically scaled
+            xy_scale=gsd
         )
         ply_path = out_dir / f"{stem}_mesh.ply"
         export_mesh(mesh, str(ply_path))
