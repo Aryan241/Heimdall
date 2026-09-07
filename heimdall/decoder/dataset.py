@@ -66,20 +66,26 @@ class RemoteSensingHeightDataset(Dataset):
         import re
         
         # Match image files with height files by stem or ISPRS tile ID
-        img_files = sorted(list(self.img_dir.glob("*.*")))
+        # Use rglob to search recursively in case the dataset has nested folders (e.g. 2_Ortho_RGB/2_Ortho_RGB/)
+        img_files = sorted([f for f in self.img_dir.rglob("*.*") if f.is_file()])
         self.samples = []
         for img_path in img_files:
             stem = img_path.stem
             hgt_path = None
             
             # Extract tile ID like '2_10' if this is an ISPRS dataset (e.g., top_potsdam_2_10_RGB)
+            # Make sure it handles '02_10' as well by stripping leading zeros
             match = re.search(r'(\d+_\d+)', stem)
             tile_id = match.group(1) if match else stem
+            # Strip leading zeros from parts (e.g. 02_10 -> 2_10) to ensure robust matching
+            normalized_tile_id = "_".join([str(int(p)) for p in tile_id.split('_')]) if '_' in tile_id else tile_id
             
             # Search for a height file containing the tile ID or exact stem
-            for hgt_file in self.hgt_dir.glob("*.*"):
-                if hgt_file.suffix.lower() in [".npy", ".png", ".tif", ".tiff"]:
-                    if tile_id in hgt_file.stem or stem == hgt_file.stem:
+            # Use rglob recursively here as well
+            for hgt_file in self.hgt_dir.rglob("*.*"):
+                if hgt_file.is_file() and hgt_file.suffix.lower() in [".npy", ".png", ".tif", ".tiff"]:
+                    hgt_stem_norm = "_".join([str(int(p)) for p in re.findall(r'\d+', hgt_file.stem)]) if re.findall(r'\d+', hgt_file.stem) else hgt_file.stem
+                    if normalized_tile_id in hgt_stem_norm or stem == hgt_file.stem or tile_id in hgt_file.stem:
                         hgt_path = hgt_file
                         break
             
