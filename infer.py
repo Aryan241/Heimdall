@@ -71,6 +71,10 @@ def main() -> int:
         help="Skip saving colorized depth visualization.",
     )
     parser.add_argument(
+        "--use-segmentation", action="store_true",
+        help="Run Stage 4 semantic segmentation to generate a ground mask for RANSAC.",
+    )
+    parser.add_argument(
         "--verbose", "-v", action="store_true",
         help="Enable debug logging.",
     )
@@ -126,15 +130,35 @@ def main() -> int:
     log.info("Depth stats — min: %.3f  max: %.3f  mean: %.3f  std: %.3f",
              depth.min(), depth.max(), depth.mean(), depth.std())
 
+    out_dir = args.output_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stem = args.input.stem
+
+    # ── Stage 4: Semantic Segmentation ───────────────────────────────────
+    ground_mask = None
+    if args.use_segmentation:
+        log.info("Running Stage 4: Semantic Segmentation (SegFormer) ...")
+        t_seg = time.perf_counter()
+        from heimdall.segmentation.segformer import GroundSegmenter
+        segmenter = GroundSegmenter(device=device)
+        # Convert RGB numpy to RGB Image for processor
+        ground_mask = segmenter.get_ground_mask(payload.image)
+        elapsed_seg = time.perf_counter() - t_seg
+        log.info("Segmentation complete in %.1fs", elapsed_seg)
+        
+        # Save mask visualization
+        mask_path = out_dir / f"{stem}_ground_mask.png"
+        import matplotlib.pyplot as plt
+        plt.imsave(mask_path, ground_mask.cpu().numpy(), cmap='gray')
+        log.info("✓ Ground mask saved to %s", mask_path)
+
     # ── Stage 5: Scale Calibration (RANSAC) ──────────────────────────────
     if args.reference_dem:
         log.info("Running Stage 5: RANSAC Scale Calibration using %s", args.reference_dem)
         import torch
         from heimdall.calibration.ransac import fit_affine_transform, apply_transform
         
-        # Load DEM using our ingestion loader
         dem_payload = ingest(args.reference_dem)
-        # Convert to single channel (if loaded as RGB)
         ref_np = dem_payload.image
         if ref_np.ndim == 3:
             ref_np = ref_np.mean(axis=-1)
@@ -142,7 +166,7 @@ def main() -> int:
         ref_tensor = torch.from_numpy(ref_np).float()
         depth_tensor = torch.from_numpy(depth).float()
         
-        scale, shift = fit_affine_transform(depth_tensor, ref_tensor)
+        scale, shift = fit_affine_transform(depth_tensor, ref_tensor, mask=ground_mask)
         calibrated_depth_tensor = apply_transform(depth_tensor, scale, shift)
         depth = calibrated_depth_tensor.numpy()
         
@@ -150,11 +174,6 @@ def main() -> int:
                  depth.min(), depth.max(), depth.mean())
 
     # ── Stage 7 (partial): Save outputs ──────────────────────────────────
-    out_dir = args.output_dir
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    stem = args.input.stem
-
     # Always save 16-bit heightmap
     png16_path = save_depth_png16(depth, out_dir / f"{stem}_depth16.png")
     log.info("✓ 16-bit depth PNG: %s", png16_path)
