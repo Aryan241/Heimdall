@@ -75,6 +75,10 @@ def main() -> int:
         help="Run Stage 4 semantic segmentation to generate a ground mask for RANSAC.",
     )
     parser.add_argument(
+        "--export-mesh", action="store_true",
+        help="Run Stage 8 to export a 3D textured mesh (.ply).",
+    )
+    parser.add_argument(
         "--verbose", "-v", action="store_true",
         help="Enable debug logging.",
     )
@@ -187,6 +191,29 @@ def main() -> int:
     npy_path = out_dir / f"{stem}_depth.npy"
     np.save(npy_path, depth)
     log.info("✓ Raw depth array: %s", npy_path)
+
+    # ── Stage 8: Mesh Generation ─────────────────────────────────────────
+    if args.export_mesh:
+        log.info("Running Stage 8: Mesh Generation...")
+        from heimdall.mesh.mesher import heightmap_to_mesh, export_mesh
+        
+        # Determine downsample factor based on image size to prevent crashing
+        # A 1024x1024 image is 1M vertices. Let's aim for ~250k vertices max by default.
+        max_vertices = 250_000
+        total_pixels = depth.shape[0] * depth.shape[1]
+        downsample_factor = 1
+        while (total_pixels / (downsample_factor**2)) > max_vertices:
+            downsample_factor += 1
+            
+        mesh = heightmap_to_mesh(
+            heightmap=depth,
+            rgb_image=payload.image,
+            downsample_factor=downsample_factor,
+            z_scale=1.0  # Already metric if calibrated
+        )
+        ply_path = out_dir / f"{stem}_mesh.ply"
+        export_mesh(mesh, str(ply_path))
+        log.info("✓ 3D Mesh saved to %s", ply_path)
 
     # If georeferenced, also save as GeoTIFF
     if payload.kind == "georeferenced":
