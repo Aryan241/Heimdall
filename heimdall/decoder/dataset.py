@@ -47,26 +47,41 @@ class RemoteSensingHeightDataset(Dataset):
             # Fallback for flat dataset structures without a train/val split folder
             fallback_img_dir = self.dataset_dir / "images"
             fallback_hgt_dir = self.dataset_dir / "heights"
+            
+            # Fallback for ISPRS Potsdam native structure
+            isprs_img_dir = self.dataset_dir / "2_Ortho_RGB"
+            isprs_hgt_dir = self.dataset_dir / "1_DSM_normalisation"
+            
             if fallback_img_dir.exists():
                 self.img_dir = fallback_img_dir
                 self.hgt_dir = fallback_hgt_dir
+            elif isprs_img_dir.exists():
+                self.img_dir = isprs_img_dir
+                self.hgt_dir = isprs_hgt_dir
             else:
                 logger.warning("Image directory %s not found. (Expected if running dummy test)", self.img_dir)
                 self.samples = []
                 return
                 
-        # Match image files with height files by stem
+        import re
+        
+        # Match image files with height files by stem or ISPRS tile ID
         img_files = sorted(list(self.img_dir.glob("*.*")))
         self.samples = []
         for img_path in img_files:
-            # Find matching height file (could be .png, .tif, .npy)
             stem = img_path.stem
             hgt_path = None
-            for ext in [".npy", ".png", ".tif", ".tiff"]:
-                candidate = self.hgt_dir / f"{stem}{ext}"
-                if candidate.exists():
-                    hgt_path = candidate
-                    break
+            
+            # Extract tile ID like '2_10' if this is an ISPRS dataset (e.g., top_potsdam_2_10_RGB)
+            match = re.search(r'(\d+_\d+)', stem)
+            tile_id = match.group(1) if match else stem
+            
+            # Search for a height file containing the tile ID or exact stem
+            for hgt_file in self.hgt_dir.glob("*.*"):
+                if hgt_file.suffix.lower() in [".npy", ".png", ".tif", ".tiff"]:
+                    if tile_id in hgt_file.stem or stem == hgt_file.stem:
+                        hgt_path = hgt_file
+                        break
             
             if hgt_path:
                 # Optional: Check if filename contains strata string if filtering
