@@ -58,6 +58,4 @@ npm run dev
 - **Geospatial Processing:** Rasterio, Trimesh, NumPy
 - **Frontend / Visualization:** Next.js, React, Three.js (`@react-three/fiber`), Tailwind CSS
 
----
 
-*This project was developed for the SIH 2026 Hackathon to bridge the domain gap between natural egocentric depth models and top-down remote sensing elevation requirements.*
