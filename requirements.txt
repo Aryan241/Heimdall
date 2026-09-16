@@ -7,11 +7,18 @@ numpy>=1.24
 scipy>=1.10
 scikit-learn>=1.3
 Pillow>=9.5
+h5py>=3.8
 
 # ---------- Depth Anything V2 ----------
 transformers>=4.44,<4.46
 safetensors>=0.4
 timm>=0.9
+
+# ---------- Depth Anything V3 (native) ----------
+einops>=0.7
+omegaconf>=2.3
+huggingface_hub>=1.0
+e3nn>=0.5
 
 # ---------- Geospatial ----------
 rasterio>=1.3
