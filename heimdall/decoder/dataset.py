@@ -1,7 +1,8 @@
 """
 Stage 3 — Unified Dataset Loader for Domain Adaptation
 
-Loads RGB imagery and ground-truth height maps (DFC2019 / ISPRS).
+Loads RGB imagery and ground-truth height maps from the GAMUS dataset (HDF5 .h5)
+and legacy formats (DFC2019 / ISPRS with .png/.tif files).
 Handles random cropping, normalization, and strata filtering.
 """
 
@@ -20,14 +21,41 @@ import random
 
 logger = logging.getLogger(__name__)
 
-class RemoteSensingHeightDataset(Dataset):
-    """Unified dataset for DFC2019 and ISPRS Potsdam/Vaihingen.
+
+def _load_h5_array(path: Path) -> np.ndarray:
+    """Load a numpy array from an HDF5 (.h5) file.
     
-    Assumes a directory structure:
-        dataset_dir/
-            images/   (RGB .jpg/.png)
-            heights/  (Grayscale or float .png/.npy/.tif)
+    GAMUS stores each sample as a single dataset inside the .h5 file.
+    We read the first dataset found.
     """
+    import h5py
+    with h5py.File(path, "r") as f:
+        # GAMUS .h5 files typically have a single dataset at the root level.
+        # Try common keys first, then fall back to the first key found.
+        for key in ["data", "image", "rgb", "height", "agl", "dsm"]:
+            if key in f:
+                return np.array(f[key])
+        # Fallback: grab the first dataset
+        first_key = list(f.keys())[0]
+        return np.array(f[first_key])
+
+
+class RemoteSensingHeightDataset(Dataset):
+    """Unified dataset for GAMUS (HDF5), DFC2019, and ISPRS Potsdam/Vaihingen.
+    
+    Supports directory structures:
+        GAMUS:
+            dataset_dir/
+                images/train/  (*.h5 RGB files)
+                heights/train/ (*.h5 AGL height files)
+        DFC2019 / ISPRS:
+            dataset_dir/
+                images/   (RGB .jpg/.png/.tif)
+                heights/  (Grayscale or float .png/.npy/.tif)
+    """
+    SUPPORTED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".h5"}
+    SUPPORTED_HEIGHT_EXTS = {".npy", ".png", ".tif", ".tiff", ".jpg", ".jpeg", ".h5"}
+
     def __init__(
         self,
         dataset_dir: str | Path,
@@ -40,87 +68,143 @@ class RemoteSensingHeightDataset(Dataset):
         self.split = split
         self.strata = strata
         
-        self.img_dir = self.dataset_dir / split / "images"
-        self.hgt_dir = self.dataset_dir / split / "heights"
+        # Try GAMUS structure first: images/{split}/ and heights/{split}/
+        self.img_dir = self.dataset_dir / "images" / split
+        self.hgt_dir = self.dataset_dir / "heights" / split
         
         if not self.img_dir.exists():
-            # Fallback for flat dataset structures without a train/val split folder
-            fallback_img_dir = self.dataset_dir / "images"
-            fallback_hgt_dir = self.dataset_dir / "heights"
+            # Fallback: dataset_dir/{split}/images/ 
+            alt_img = self.dataset_dir / split / "images"
+            alt_hgt = self.dataset_dir / split / "heights"
             
-            # Fallback for ISPRS Potsdam native structure
-            isprs_img_dir = self.dataset_dir / "2_Ortho_RGB"
-            isprs_hgt_dir = self.dataset_dir / "1_DSM_normalisation"
-            
-            if fallback_img_dir.exists():
-                self.img_dir = fallback_img_dir
-                self.hgt_dir = fallback_hgt_dir
-            elif isprs_img_dir.exists():
-                self.img_dir = isprs_img_dir
-                self.hgt_dir = isprs_hgt_dir
+            if alt_img.exists():
+                self.img_dir = alt_img
+                self.hgt_dir = alt_hgt
             else:
-                logger.warning("Image directory %s not found. (Expected if running dummy test)", self.img_dir)
-                self.samples = []
-                return
+                # Fallback: flat structure with no split folder
+                flat_img = self.dataset_dir / "images"
+                flat_hgt = self.dataset_dir / "heights"
                 
-        import re
+                # Fallback for ISPRS Potsdam native structure
+                isprs_img = self.dataset_dir / "2_Ortho_RGB"
+                isprs_hgt = self.dataset_dir / "1_DSM_normalisation"
+                
+                if flat_img.exists():
+                    self.img_dir = flat_img
+                    self.hgt_dir = flat_hgt
+                elif isprs_img.exists():
+                    self.img_dir = isprs_img
+                    self.hgt_dir = isprs_hgt
+                else:
+                    logger.warning("Image directory not found for split '%s' in %s", split, dataset_dir)
+                    self.samples = []
+                    return
         
-        # Match image files with height files by stem or ISPRS tile ID
-        # Use rglob to search recursively. Filter out 0-byte corrupted files.
-        img_files = sorted([f for f in self.img_dir.rglob("*.*") if f.is_file() and f.stat().st_size > 0 and f.suffix.lower() in [".jpg", ".jpeg", ".png", ".tif", ".tiff"]])
-        self.samples = []
-        for img_path in img_files:
-            stem = img_path.stem
-            hgt_path = None
-            
-            # Extract tile ID like '2_10' if this is an ISPRS dataset (e.g., top_potsdam_2_10_RGB)
-            match = re.search(r'(\d+_\d+)', stem)
-            tile_id = match.group(1) if match else stem
-            # Strip leading zeros from parts (e.g. 02_10 -> 2_10) to ensure robust matching
-            normalized_tile_id = "_".join([str(int(p)) for p in tile_id.split('_')]) if '_' in tile_id else tile_id
-            
-            # Search for a valid, non-empty height file containing the tile ID or exact stem
-            for hgt_file in self.hgt_dir.rglob("*.*"):
-                if hgt_file.is_file() and hgt_file.stat().st_size > 0 and hgt_file.suffix.lower() in [".npy", ".png", ".tif", ".tiff", ".jpg", ".jpeg"]:
-                    hgt_stem_norm = "_".join([str(int(p)) for p in re.findall(r'\d+', hgt_file.stem)]) if re.findall(r'\d+', hgt_file.stem) else hgt_file.stem
-                    if normalized_tile_id in hgt_stem_norm or stem == hgt_file.stem or tile_id in hgt_file.stem:
-                        hgt_path = hgt_file
-                        break
-            
-            if hgt_path:
-                # Optional: Check if filename contains strata string if filtering
-                if self.strata is None or self.strata.lower() in stem.lower():
-                    self.samples.append((img_path, hgt_path))
-                    
+        # Build sample pairs
+        self.samples = self._build_sample_list()
         logger.info("Loaded %d paired samples from %s (split=%s, strata=%s)", 
                     len(self.samples), dataset_dir, split, strata)
+
+    def _extract_tile_id(self, stem: str) -> str:
+        """Extract a tile ID from a filename stem for matching.
+        
+        GAMUS naming: DC_01_25_RGB -> tile_id = DC_01_25
+        ISPRS naming: top_potsdam_2_10_RGB -> tile_id = 2_10
+        """
+        # Strip common suffixes
+        for suffix in ["_RGB", "_AGL", "_CLS", "_DSM", "_DEM"]:
+            if stem.upper().endswith(suffix):
+                stem = stem[:len(stem) - len(suffix)]
+                break
+        return stem
+
+    def _build_sample_list(self) -> list[tuple[Path, Path]]:
+        """Build a list of (image_path, height_path) pairs by matching tile IDs."""
+        import re
+        
+        # Collect all valid image files
+        img_files = sorted([
+            f for f in self.img_dir.rglob("*.*") 
+            if f.is_file() and f.stat().st_size > 0 and f.suffix.lower() in self.SUPPORTED_IMAGE_EXTS
+        ])
+        
+        # Build a lookup dict for height files: tile_id -> path
+        hgt_lookup: dict[str, Path] = {}
+        if self.hgt_dir.exists():
+            for hgt_file in self.hgt_dir.rglob("*.*"):
+                if hgt_file.is_file() and hgt_file.stat().st_size > 0 and hgt_file.suffix.lower() in self.SUPPORTED_HEIGHT_EXTS:
+                    tile_id = self._extract_tile_id(hgt_file.stem)
+                    hgt_lookup[tile_id] = hgt_file
+        
+        samples = []
+        unmatched = 0
+        for img_path in img_files:
+            tile_id = self._extract_tile_id(img_path.stem)
+            
+            # Optional strata filtering
+            if self.strata is not None and self.strata.lower() not in tile_id.lower():
+                continue
+            
+            hgt_path = hgt_lookup.get(tile_id)
+            if hgt_path:
+                samples.append((img_path, hgt_path))
+            else:
+                unmatched += 1
+        
+        if unmatched > 0:
+            logger.warning("%d image files had no matching height file.", unmatched)
+        
+        return samples
 
     def __len__(self) -> int:
         return len(self.samples)
 
+    def _load_image(self, path: Path) -> np.ndarray:
+        """Load an RGB image as an H×W×3 uint8 numpy array."""
+        if path.suffix.lower() == ".h5":
+            arr = _load_h5_array(path)
+            # H5 arrays can be (H, W, 3) or (3, H, W) — handle both
+            if arr.ndim == 3 and arr.shape[0] == 3:
+                arr = np.transpose(arr, (1, 2, 0))
+            if arr.dtype != np.uint8:
+                # Normalize float images to uint8
+                if arr.max() <= 1.0:
+                    arr = (arr * 255).clip(0, 255).astype(np.uint8)
+                else:
+                    arr = arr.clip(0, 255).astype(np.uint8)
+            return arr
+        else:
+            return np.array(Image.open(path).convert("RGB"))
+
     def _load_height(self, path: Path) -> np.ndarray:
-        if path.suffix.lower() == ".npy":
+        """Load a height map as an H×W float32 numpy array."""
+        if path.suffix.lower() == ".h5":
+            arr = _load_h5_array(path)
+            # Heights are typically (H, W) or (1, H, W)
+            if arr.ndim == 3 and arr.shape[0] == 1:
+                arr = arr.squeeze(0)
+            return arr.astype(np.float32)
+        elif path.suffix.lower() == ".npy":
             return np.load(path).astype(np.float32)
-        try:
-            # Using rasterio since heights are often single-channel float32 TIFFs
-            import rasterio
-            with rasterio.open(path) as src:
-                return src.read(1).astype(np.float32)
-        except Exception:
-            # Fallback to PIL for JPEGs/PNGs if rasterio/GDAL rejects them
-            from PIL import Image
-            img = Image.open(path).convert('L')
-            return np.array(img).astype(np.float32)
+        else:
+            try:
+                import rasterio
+                with rasterio.open(path) as src:
+                    return src.read(1).astype(np.float32)
+            except Exception:
+                img = Image.open(path).convert('L')
+                return np.array(img).astype(np.float32)
 
     def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         img_path, hgt_path = self.samples[idx]
         
-        # Load RGB
-        img_pil = Image.open(img_path).convert("RGB")
+        # Load RGB image as numpy, then PIL for transforms
+        img_np = self._load_image(img_path)
+        img_pil = Image.fromarray(img_np)
         
         # Load height
         hgt_np = self._load_height(hgt_path)
-        hgt_tensor = torch.from_numpy(hgt_np).unsqueeze(0) # (1, H, W)
+        hgt_tensor = torch.from_numpy(hgt_np).unsqueeze(0)  # (1, H, W)
         
         # Random Crop for training
         if self.split == "train":
@@ -132,13 +216,14 @@ class RemoteSensingHeightDataset(Dataset):
                 hgt_tensor = hgt_tensor[:, i:i+self.patch_size, j:j+self.patch_size]
             else:
                 img_pil = TF.resize(img_pil, [self.patch_size, self.patch_size])
-                hgt_tensor = F.interpolate(hgt_tensor.unsqueeze(0), size=[self.patch_size, self.patch_size], mode='bilinear').squeeze(0)
+                hgt_tensor = torch.nn.functional.interpolate(
+                    hgt_tensor.unsqueeze(0), size=[self.patch_size, self.patch_size], mode='bilinear', align_corners=False
+                ).squeeze(0)
         else:
-            # Validation: just resize to patch_size for batching simplicity, 
-            # or keep original (but batch size must be 1)
+            # Validation: resize for consistent batching
             img_pil = TF.resize(img_pil, [self.patch_size, self.patch_size])
             hgt_tensor = torch.nn.functional.interpolate(
-                hgt_tensor.unsqueeze(0), size=[self.patch_size, self.patch_size], mode='bilinear'
+                hgt_tensor.unsqueeze(0), size=[self.patch_size, self.patch_size], mode='bilinear', align_corners=False
             ).squeeze(0)
 
         # Convert RGB to tensor [0, 1]

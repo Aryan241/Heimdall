@@ -1,7 +1,7 @@
 """
 Stage 3 — Training Wrapper Model
 
-Encapsulates the frozen Depth Anything V2 backbone and the trainable Domain Adaptation Head.
+Encapsulates the frozen Depth Anything V2/V3 backbone and the trainable Domain Adaptation Head.
 Handles the forward pass and loss computation.
 """
 
@@ -9,64 +9,90 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
-from PIL import Image
 import numpy as np
+
 
 class DomainAdaptationWrapper(nn.Module):
     """
-    Wraps the Hugging Face Depth Anything V2 model (frozen) and our custom
+    Wraps the Depth Anything backbone (frozen) and our custom
     DomainAdaptationHead (trainable).
+    
+    Supports both DA2 (via HF transformers) and DA3 (via native API).
     """
     def __init__(self, model_key: str = "vit-b", device_str: str = "cpu"):
         super().__init__()
-        from transformers import AutoImageProcessor, AutoModelForDepthEstimation
-        from heimdall.depth.depth_anything import MODEL_REGISTRY
+        from heimdall.depth.depth_anything import MODEL_REGISTRY, _load_model
         from heimdall.decoder.head import DomainAdaptationHead
 
-        model_id = MODEL_REGISTRY[model_key]
-        self.processor = AutoImageProcessor.from_pretrained(model_id)
-        
-        # Load backbone and freeze it entirely
-        self.backbone = AutoModelForDepthEstimation.from_pretrained(model_id)
+        self.model_key = model_key
+        self.is_da3 = model_key.startswith("da3")
+
+        # Load backbone via our unified loader (returns processor, model)
+        self.processor, self.backbone = _load_model(model_key, device_str)
+
+        # Freeze backbone entirely
         for param in self.backbone.parameters():
             param.requires_grad = False
         self.backbone.eval()
         
-        # Trainable head
-        self.head = DomainAdaptationHead(in_channels=4, hidden_dims=[64, 32, 16])
+        # Trainable ASPP head
+        self.head = DomainAdaptationHead(in_channels=4, hidden_dim=128)
         
         # Loss function (L1 loss is a good baseline for metric depth)
         self.loss_fn = nn.L1Loss()
 
     def train(self, mode: bool = True):
-        """Override train to ensure backbone stays in eval mode (no dropout/batchnorm updates)."""
+        """Override train to ensure backbone stays in eval mode."""
         super().train(mode)
         self.backbone.eval()
         return self
+
+    def _extract_relative_depth_da2(self, rgb_tensor: torch.Tensor) -> torch.Tensor:
+        """Extract relative depth from DA2 backbone using ImageNet normalization."""
+        mean = torch.tensor([0.485, 0.456, 0.406], device=rgb_tensor.device).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225], device=rgb_tensor.device).view(1, 3, 1, 1)
+        pixel_values = (rgb_tensor - mean) / std
+
+        with torch.no_grad():
+            outputs = self.backbone(pixel_values=pixel_values)
+            relative_depth = outputs.predicted_depth.unsqueeze(1)  # (B, 1, H', W')
+        return relative_depth
+
+    def _extract_relative_depth_da3(self, rgb_tensor: torch.Tensor) -> torch.Tensor:
+        """Extract depth from DA3 backbone using its native inference API.
+        
+        DA3's inference() expects a list of numpy images (H, W, 3) uint8 or file paths.
+        We convert the batch tensor back to numpy, run inference, and return as tensor.
+        """
+        B = rgb_tensor.shape[0]
+        device = rgb_tensor.device
+        
+        # Convert (B, 3, H, W) float [0,1] tensor -> list of (H, W, 3) uint8 numpy
+        images_np = []
+        for i in range(B):
+            img = rgb_tensor[i].detach().cpu().permute(1, 2, 0).numpy()  # (H, W, 3) float [0,1]
+            img = (img * 255).clip(0, 255).astype(np.uint8)
+            images_np.append(img)
+        
+        with torch.no_grad():
+            prediction = self.backbone.inference(images_np)
+            # prediction.depth is [N, H, W] float32 numpy
+            depth_np = prediction.depth  # (B, H, W)
+        
+        depth_tensor = torch.from_numpy(depth_np).to(device).unsqueeze(1)  # (B, 1, H, W)
+        return depth_tensor
 
     def forward(self, rgb_tensor: torch.Tensor, target_height: torch.Tensor | None = None) -> dict[str, torch.Tensor]:
         """
         rgb_tensor: (B, 3, H, W) float tensor [0, 1]
         target_height: (B, 1, H, W) float tensor
         """
-        # Convert the raw tensor to the format expected by the HF processor.
-        # The processor expects PIL images or numpy arrays typically, 
-        # but since we are in a training loop and need gradients for the head 
-        # (though not backbone), we can pass tensors if we normalize manually.
-        # Actually, AutoImageProcessor is hard to use purely in-graph with tensors.
-        # Let's normalize the tensor manually matching ImageNet stats which DepthAnything uses.
+        # Extract relative depth from the frozen backbone
+        if self.is_da3:
+            relative_depth = self._extract_relative_depth_da3(rgb_tensor)
+        else:
+            relative_depth = self._extract_relative_depth_da2(rgb_tensor)
         
-        # DepthAnything V2 uses standard ImageNet mean/std
-        mean = torch.tensor([0.485, 0.456, 0.406], device=rgb_tensor.device).view(1, 3, 1, 1)
-        std = torch.tensor([0.229, 0.224, 0.225], device=rgb_tensor.device).view(1, 3, 1, 1)
-        
-        pixel_values = (rgb_tensor - mean) / std
-
-        # Forward pass through frozen backbone
-        with torch.no_grad():
-            outputs = self.backbone(pixel_values=pixel_values)
-            relative_depth = outputs.predicted_depth.unsqueeze(1) # (B, 1, H', W')
-            
         # The head takes the original RGB [0,1] and the relative depth
         pred_height = self.head(rgb_tensor, relative_depth)
         
@@ -78,8 +104,8 @@ class DomainAdaptationWrapper(nn.Module):
             
         loss = None
         if target_height is not None:
-            # Mask out invalid pixels (e.g. nodata values like <= -9999 or 0 if 0 is invalid)
-            valid_mask = target_height > -1000
+            # Mask out invalid pixels (e.g. nodata values like <= -9999 or NaN)
+            valid_mask = (target_height > -1000) & (~torch.isnan(target_height))
             if valid_mask.sum() > 0:
                 loss = self.loss_fn(pred_height[valid_mask], target_height[valid_mask])
             else:
