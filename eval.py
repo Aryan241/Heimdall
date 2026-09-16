@@ -43,24 +43,67 @@ def main() -> int:
         
     evaluator = Evaluator()
     
-    # ── MOCK EVALUATION LOGIC FOR TESTING ─────────────────────────────────────
-    # In a real scenario, this would load the model, iterate over the dataset,
-    # and call predict. For this test run without the Kaggle dataset locally,
-    # we simulate the evaluation using dummy data.
-    
-    log.warning("No full dataset found locally. Running a simulated evaluation on test data to verify pipeline...")
-    
-    # Simulate Urban category
-    pred_urban = np.random.uniform(5.0, 30.0, (512, 512))
-    gt_urban = pred_urban + np.random.normal(0, 1.5, (512, 512))
-    evaluator.add_result("urban", pred_urban, gt_urban)
-    
-    # Simulate Forested category
-    pred_forest = np.random.uniform(1.0, 15.0, (512, 512))
-    gt_forest = pred_forest + np.random.normal(0, 3.0, (512, 512))
-    evaluator.add_result("forested", pred_forest, gt_forest)
-    
     # ── METRICS COMPUTATION ───────────────────────────────────────────────────
+    if not args.val_data.exists():
+        log.error("Validation data directory not found: %s", args.val_data)
+        return 1
+
+    img_dir = args.val_data / "images"
+    depth_dir = args.val_data / "depths"
+    
+    if not img_dir.exists() or not depth_dir.exists():
+        log.warning("Could not find images/ and depths/ subdirectories in %s. Please ensure GAMUS dataset format.", args.val_data)
+        log.warning("Running mock evaluation since valid dataset was not found...")
+        # Mock eval fallback for testing without data
+        pred_urban = np.random.uniform(5.0, 30.0, (512, 512))
+        gt_urban = pred_urban + np.random.normal(0, 1.5, (512, 512))
+        evaluator.add_result("urban", pred_urban, gt_urban)
+    else:
+        log.info("Loading models...")
+        import torch
+        from heimdall.depth.depth_anything import extract_depth, _load_model
+        from heimdall.device import get_device
+        from heimdall.ingestion.loader import ingest
+        import rasterio
+        
+        device = get_device()
+        processor, model = _load_model("v2_large", device.type)
+        
+        images = list(img_dir.glob("*.png")) + list(img_dir.glob("*.jpg")) + list(img_dir.glob("*.tif"))
+        log.info("Found %d validation images. Beginning evaluation...", len(images))
+        
+        for img_path in images:
+            # Assuming matching filename for depth map
+            gt_path = depth_dir / (img_path.stem + ".tif")
+            if not gt_path.exists():
+                gt_path = depth_dir / (img_path.stem + ".png")
+                if not gt_path.exists():
+                    continue
+            
+            try:
+                # Load inputs
+                img_payload = ingest(img_path)
+                with rasterio.open(gt_path) as src:
+                    gt_depth = src.read(1)
+                
+                # Inference
+                # Optionally pass args.weights logic here if using domain adaptation head
+                pred_depth = extract_depth(img_payload.image, processor, model, device)
+                
+                # Reshape/resize pred to match GT if necessary
+                import cv2
+                if pred_depth.shape != gt_depth.shape:
+                    pred_depth = cv2.resize(pred_depth, (gt_depth.shape[1], gt_depth.shape[0]), interpolation=cv2.INTER_LINEAR)
+                    
+                # Add to evaluator. (Using "overall" or inferring category from filename/metadata)
+                category = "urban" if "urban" in img_path.name.lower() else "forested" if "forest" in img_path.name.lower() else "general"
+                evaluator.add_result(category, pred_depth, gt_depth)
+                
+                if args.verbose:
+                    log.debug("Evaluated %s", img_path.name)
+            except Exception as e:
+                log.error("Failed evaluating %s: %s", img_path.name, e)
+    
     log.info("Computing metrics across all categories...")
     results = evaluator.evaluate_all()
     

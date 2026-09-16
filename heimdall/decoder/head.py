@@ -1,8 +1,9 @@
 """
 Stage 3 — Domain Adaptation Head
 
-A lightweight regression head that takes the frozen Depth Anything V2 features
-(specifically, the relative depth map + RGB image) and predicts the adapted height.
+A robust regression head that takes the frozen Depth Anything V2 features
+(relative depth map + RGB image) and predicts the adapted metric height.
+Now upgraded with ASPP (Atrous Spatial Pyramid Pooling) for multi-scale context.
 """
 
 from __future__ import annotations
@@ -11,33 +12,79 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class DomainAdaptationHead(nn.Module):
-    """Lightweight CNN to adapt relative depth + RGB to target height.
-    
-    Instead of building a massive DPT decoder from scratch, we leverage the
-    already-excellent relative depth map from the frozen Depth Anything V2,
-    concatenate it with the original RGB image (for texture/boundary guidance),
-    and pass it through a few convolutional blocks.
-    """
-    def __init__(self, in_channels: int = 4, hidden_dims: list[int] = [32, 32, 16]):
+class ASPP(nn.Module):
+    """Atrous Spatial Pyramid Pooling module for multi-scale context aggregation."""
+    def __init__(self, in_channels: int, out_channels: int, dilations: list[int] = [1, 6, 12, 18]):
         super().__init__()
         
-        layers = []
-        current_in = in_channels
-        
-        # Build lightweight conv blocks
-        for h_dim in hidden_dims:
-            layers.extend([
-                nn.Conv2d(current_in, h_dim, kernel_size=3, padding=1),
-                nn.BatchNorm2d(h_dim),
-                nn.ReLU(inplace=True),
-            ])
-            current_in = h_dim
+        self.branches = nn.ModuleList()
+        for dilation in dilations:
+            kernel_size = 1 if dilation == 1 else 3
+            padding = 0 if dilation == 1 else dilation
             
-        # Final projection to 1-channel depth
-        layers.append(nn.Conv2d(current_in, 1, kernel_size=3, padding=1))
+            self.branches.append(nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding, dilation=dilation, bias=False),
+                nn.BatchNorm2d(out_channels),
+                nn.ReLU(inplace=True)
+            ))
+            
+        # Global average pooling branch
+        self.global_pool = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(in_channels, out_channels, 1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True)
+        )
         
-        self.net = nn.Sequential(*layers)
+        # Bottleneck to fuse all branches
+        self.bottleneck = nn.Sequential(
+            nn.Conv2d(out_channels * (len(dilations) + 1), out_channels, 3, padding=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.1)
+        )
+        
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        size = x.shape[2:]
+        branch_outs = [branch(x) for branch in self.branches]
+        
+        pool_out = self.global_pool(x)
+        pool_out = F.interpolate(pool_out, size=size, mode='bilinear', align_corners=False)
+        branch_outs.append(pool_out)
+        
+        out = torch.cat(branch_outs, dim=1)
+        return self.bottleneck(out)
+
+
+class DomainAdaptationHead(nn.Module):
+    """Advanced CNN with ASPP to adapt relative depth + RGB to target height.
+    
+    Concatenates RGB (3ch) + relative depth (1ch), extracts multi-scale features
+    using ASPP, and regresses absolute metric height.
+    """
+    def __init__(self, in_channels: int = 4, hidden_dim: int = 128):
+        super().__init__()
+        
+        # Initial stem
+        self.stem = nn.Sequential(
+            nn.Conv2d(in_channels, hidden_dim // 2, 3, padding=1, bias=False),
+            nn.BatchNorm2d(hidden_dim // 2),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(hidden_dim // 2, hidden_dim, 3, padding=1, bias=False),
+            nn.BatchNorm2d(hidden_dim),
+            nn.ReLU(inplace=True)
+        )
+        
+        # Multi-scale context
+        self.aspp = ASPP(hidden_dim, hidden_dim)
+        
+        # Decoder/Projection
+        self.decoder = nn.Sequential(
+            nn.Conv2d(hidden_dim, hidden_dim // 2, 3, padding=1, bias=False),
+            nn.BatchNorm2d(hidden_dim // 2),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(hidden_dim // 2, 1, 1)
+        )
         
     def forward(self, rgb: torch.Tensor, relative_depth: torch.Tensor) -> torch.Tensor:
         """
@@ -55,7 +102,10 @@ class DomainAdaptationHead(nn.Module):
             )
             
         x = torch.cat([rgb, relative_depth], dim=1) # (B, 4, H, W)
-        out = self.net(x)                           # (B, 1, H, W)
+        
+        feat = self.stem(x)
+        feat = self.aspp(feat)
+        out = self.decoder(feat)
         
         # We add the relative depth back as a skip connection (scaled) to ease learning,
         # so the network only has to learn the residual/scale transform.

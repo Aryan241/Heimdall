@@ -18,29 +18,50 @@ from heimdall.device import get_device
 
 logger = logging.getLogger(__name__)
 
-# HF model identifiers for Depth Anything V2
+# HF model identifiers for Depth Anything V2 & V3
 MODEL_REGISTRY: dict[str, str] = {
     "vit-s": "depth-anything/Depth-Anything-V2-Small-hf",
     "vit-b": "depth-anything/Depth-Anything-V2-Base-hf",
     "vit-l": "depth-anything/Depth-Anything-V2-Large-hf",
+    "da3-metric-l": "depth-anything/DA3Metric-Large",
+    "da3-mono-l": "depth-anything/DA3Mono-Large",
 }
 
 
 @lru_cache(maxsize=1)
-def _load_model(model_key: str, device_str: str):
-    """Load and cache the Depth Anything V2 model + processor.
-
-    Uses lru_cache so repeated calls with the same key don't re-download.
-    """
-    from transformers import AutoImageProcessor, AutoModelForDepthEstimation
+def _load_model(model_key: str, device_str: str, use_fp16: bool = False):
+    """Load and cache the Depth Anything V2 or V3 model + processor."""
+    import sys
+    from pathlib import Path
+    
+    # Ensure local heimdall path is in sys.path for DA3 absolute imports
+    repo_root = Path(__file__).parent.parent.parent
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
 
     model_id = MODEL_REGISTRY[model_key]
-    logger.info("Loading Depth Anything V2 model: %s → %s", model_key, model_id)
-
-    processor = AutoImageProcessor.from_pretrained(model_id)
-    model = AutoModelForDepthEstimation.from_pretrained(model_id)
     device = torch.device(device_str)
+
+    if model_key.startswith("da3"):
+        logger.info("Loading Depth Anything V3 model natively: %s → %s", model_key, model_id)
+        # Import the local package
+        from depth_anything_3.api import DepthAnything3
+        
+        # DA3 doesn't use AutoImageProcessor
+        model = DepthAnything3.from_pretrained(model_id)
+        processor = None
+    else:
+        logger.info("Loading Depth Anything V2 model: %s → %s", model_key, model_id)
+        from transformers import AutoImageProcessor, AutoModelForDepthEstimation
+        processor = AutoImageProcessor.from_pretrained(model_id)
+        model = AutoModelForDepthEstimation.from_pretrained(model_id)
+
     model = model.to(device).eval()
+
+    # Apply FP16 for CUDA devices to halve VRAM and double throughput
+    if use_fp16 and device.type == "cuda":
+        model = model.half()
+        logger.info("FP16 half-precision enabled for CUDA inference.")
 
     # Freeze everything — we never update backbone weights in this project.
     for p in model.parameters():
@@ -72,11 +93,34 @@ def predict_depth(
 
     processor, model = _load_model(model_key, str(device))
 
-    # Convert numpy → PIL for the HF processor
-    pil_img = Image.fromarray(image)
+    # Convert numpy → PIL for the HF processor (if DA2)
     h, w = image.shape[:2]
 
-    # Prepare inputs
+    if processor is None:
+        # Depth Anything V3 native inference
+        import cv2
+        # DA3 inference takes BGR image path or RGB numpy array, but let's pass a list of numpy images
+        # The inference function accepts a list of inputs. Let's pass a list with one element.
+        # Wait, the example says: prediction = model.inference(images)
+        with torch.no_grad():
+            prediction = model.inference([image])
+        
+        # prediction.depth is [N, H, W]
+        depth = torch.from_numpy(prediction.depth[0]).to(device) # (H, W)
+        
+        # It's already original resolution, but we can ensure dimensions match
+        if depth.shape != (h, w):
+            depth = torch.nn.functional.interpolate(
+                depth.unsqueeze(0).unsqueeze(0),
+                size=(h, w),
+                mode="bilinear",
+                align_corners=False
+            ).squeeze()
+            
+        return depth.cpu().numpy()
+
+    # Depth Anything V2 HF processor
+    pil_img = Image.fromarray(image)
     inputs = processor(images=pil_img, return_tensors="pt")
     inputs = {k: v.to(device) for k, v in inputs.items()}
 

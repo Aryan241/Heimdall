@@ -60,6 +60,7 @@ def save_depth_geotiff(
     path: str | Path,
     crs_wkt: str,
     transform_tuple: tuple,
+    calibrated: bool = False,
 ) -> Path:
     """Save depth map as a single-band GeoTIFF, preserving the source CRS and transform."""
     import rasterio
@@ -69,6 +70,9 @@ def save_depth_geotiff(
     path = Path(path)
     h, w = depth.shape
     transform = Affine(*transform_tuple[:6])
+
+    desc = ("Metric DSM (scale-calibrated)" if calibrated
+            else "Relative depth map from Depth Anything V2 (uncalibrated)")
 
     with rasterio.open(
         path, "w",
@@ -83,7 +87,7 @@ def save_depth_geotiff(
         dst.write(depth.astype(np.float32), 1)
         dst.update_tags(
             software="Heimdall/DepthWizard",
-            description="Relative depth map from Depth Anything V2 (uncalibrated)",
+            description=desc,
         )
 
     logger.info("Saved GeoTIFF depth: %s", path)
