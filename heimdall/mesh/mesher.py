@@ -112,10 +112,13 @@ def heightmap_to_mesh(
     
     return mesh
 
-def export_mesh(mesh: trimesh.Trimesh, filepath: str):
-    """
-    Exports the mesh to a file. Defaults to .ply.
-    """
-    logger.info("Exporting mesh to %s...", filepath)
-    mesh.export(filepath)
-    logger.info("✓ Saved 3D mesh: %s", filepath)
+def export_mesh(mesh, path: str | Path) -> Path:
+    """Export the mesh as a GLB (GLTF Binary) file."""
+    path = Path(path)
+    if path.suffix != ".glb":
+        path = path.with_suffix(".glb")
+        
+    logger.info("Exporting GLB mesh to %s...", path)
+    mesh.export(str(path), file_type="glb")
+    logger.info("GLB export complete.")
+    return path

@@ -55,8 +55,8 @@ def main() -> int:
         help="Path to low-res reference DEM for RANSAC scale calibration (Stage 5).",
     )
     parser.add_argument(
-        "--model", "-m", choices=["vit-s", "vit-b", "vit-l"], default="vit-b",
-        help="Depth Anything V2 backbone size (default: vit-b).",
+        "--model", "-m", choices=["vit-s", "vit-b", "vit-l", "da3-metric-l", "da3-mono-l"], default="da3-metric-l",
+        help="Depth Anything backbone (default: da3-metric-l).",
     )
     parser.add_argument(
         "--device", "-d", type=str, default=None,
@@ -81,6 +81,14 @@ def main() -> int:
     parser.add_argument(
         "--export-mesh", action="store_true",
         help="Run Stage 8 to export a 3D textured mesh (.ply).",
+    )
+    parser.add_argument(
+        "--max-height", type=float, default=None,
+        help="Override max height (meters) for heuristic calibration. If unset, uses p2-p98 percentile range.",
+    )
+    parser.add_argument(
+        "--fp16", action="store_true",
+        help="Use FP16 half-precision inference on CUDA for 2x speed and 0.5x VRAM.",
     )
     parser.add_argument(
         "--verbose", "-v", action="store_true",
@@ -121,6 +129,33 @@ def main() -> int:
     if payload.kind == "georeferenced":
         log.info("CRS: %s  |  Bounds: %s", payload.geo.crs_epsg, payload.geo.bounds)
 
+    # --- OLD BEHAVIOR (Commented out as requested) ---
+    # # In the past, we processed the image at its absolute full resolution.
+    # # This caused extreme processing times (e.g. 15-20 mins for 400MP images).
+    # pass 
+    # ---------------------------------------------------
+
+    # --- NEW BEHAVIOR: Auto-resize for faster processing ---
+    max_dim = 2048
+    orig_h, orig_w = payload.image.shape[:2]
+    if max(orig_h, orig_w) > max_dim:
+        scale = max_dim / max(orig_h, orig_w)
+        new_h, new_w = int(orig_h * scale), int(orig_w * scale)
+        log.info("Auto-resizing image from %dx%d to %dx%d for faster processing", orig_w, orig_h, new_w, new_h)
+        from PIL import Image
+        import numpy as np
+        pil_img = Image.fromarray(payload.image).resize((new_w, new_h), Image.Resampling.LANCZOS)
+        payload.image = np.array(pil_img)
+        
+        # Scale the GeoTIFF transform if it exists to preserve spatial accuracy
+        if payload.kind == "georeferenced" and payload.geo is not None:
+            t = payload.geo.transform
+            scale_x = orig_w / new_w
+            scale_y = orig_h / new_h
+            # Transform is (a, b, c, d, e, f, 0, 0, 1) where a and e are pixel sizes
+            payload.geo.transform = (t[0] * scale_x, t[1], t[2], t[3], t[4] * scale_y, t[5]) + t[6:]
+    # -------------------------------------------------------
+
     # ── Stage 2: Depth inference ─────────────────────────────────────────
     log.info("Running Depth inference (%s) …", args.model)
     t0 = time.perf_counter()
@@ -136,23 +171,44 @@ def main() -> int:
         wrapper.head.load_state_dict(torch.load(args.weights, map_location='cpu'))
         wrapper = wrapper.to(device).eval()
         
-        # The wrapper expects (B, 3, H, W) float tensors in [0, 1]
-        img_tensor = torch.from_numpy(payload.image).float() / 255.0
-        img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0).to(device) # (1, 3, H, W)
-        
-        with torch.no_grad():
-            res = wrapper(img_tensor)
-            # The output is absolute metric height!
-            pred_height = res["pred_height"]
+        h, w = payload.image.shape[:2]
+        if h <= args.tile_size and w <= args.tile_size:
+            # Single pass for small images
+            img_tensor = torch.from_numpy(payload.image).float() / 255.0
+            img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0).to(device)
+            with torch.no_grad():
+                res = wrapper(img_tensor)
+                pred_height = res["pred_height"]
+                if pred_height.shape[2:] != (h, w):
+                    pred_height = torch.nn.functional.interpolate(
+                        pred_height, size=(h, w), mode="bilinear", align_corners=False
+                    )
+            depth = pred_height.squeeze().cpu().numpy()
+        else:
+            # Tiling for large images to prevent OOM
+            from heimdall.ingestion.tiling import tile_image, stitch_tiles
+            log.info("Image %dx%d exceeds tile size %d — tiling.", h, w, args.tile_size)
+            tiles = tile_image(payload.image, tile_size=args.tile_size, overlap=args.overlap)
+            depth_tiles = []
             
-            # Interpolate to original size if different
-            h, w = payload.image.shape[:2]
-            if pred_height.shape[2:] != (h, w):
-                pred_height = torch.nn.functional.interpolate(
-                    pred_height, size=(h, w), mode="bilinear", align_corners=False
-                )
+            for i, (tile_arr, meta) in enumerate(tiles):
+                if (i + 1) % 100 == 0 or i == 0:
+                    log.info("Processing tile %d/%d", i + 1, len(tiles))
+                img_tensor = torch.from_numpy(tile_arr).float() / 255.0
+                img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0).to(device)
                 
-        depth = pred_height.squeeze().cpu().numpy()
+                with torch.no_grad():
+                    res = wrapper(img_tensor)
+                    pred_height = res["pred_height"]
+                    th, tw = tile_arr.shape[:2]
+                    if pred_height.shape[2:] != (th, tw):
+                        pred_height = torch.nn.functional.interpolate(
+                            pred_height, size=(th, tw), mode="bilinear", align_corners=False
+                        )
+                
+                depth_tiles.append((pred_height.squeeze().cpu().numpy(), meta))
+                
+            depth = stitch_tiles(depth_tiles, original_shape=(h, w), tile_size=args.tile_size, overlap=args.overlap)
         
         # For mesh export, estimate XY scale
         from heimdall.calibration.heuristic import estimate_gsd
@@ -183,6 +239,16 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = args.input.stem
 
+    # ── Stage 4 (optional): Semantic Segmentation for Ground Masking ────
+    ground_mask = None
+    if not args.weights and args.use_segmentation:
+        log.info("Running Stage 4: Semantic Segmentation (Ground Masking)...")
+        from heimdall.segmentation.segformer import GroundSegmenter
+        segmenter = GroundSegmenter(device=device)
+        ground_mask = segmenter.get_ground_mask(payload.image)
+        ground_pct = (ground_mask.sum().item() / ground_mask.numel()) * 100
+        log.info("Ground mask generated. Ground coverage: %.1f%%", ground_pct)
+
     # ── Stage 5/6: Scale Calibration (Only if using relative depth) ─────────────────
     if not args.weights:
         if args.reference_dem:
@@ -205,21 +271,43 @@ def main() -> int:
             log.info("Calibration applied. New depth stats — min: %.3f  max: %.3f  mean: %.3f",
                      depth.min(), depth.max(), depth.mean())
         else:
-            log.info("No reference DEM provided. Running Stage 6: Heuristic Calibration (YOLO)...")
+            log.info("No reference DEM provided. Running Stage 6: Heuristic Calibration...")
             from heimdall.calibration.heuristic import estimate_gsd
             
             # Estimate X/Y scale
             gsd = estimate_gsd(str(args.input))
             
-            # Heuristic Z-scale: Normalize depth to [0, 1] and scale to max 30 meters
+            # Data-driven Z-scale using percentile range instead of hardcoded 30m
             depth_min = depth.min()
             depth_max = depth.max()
             if depth_max > depth_min:
-                depth = (depth - depth_min) / (depth_max - depth_min)
-                depth = depth * 30.0  # Assumed max height of 30 meters
+                p2 = float(np.percentile(depth, 2))
+                p98 = float(np.percentile(depth, 98))
+                depth = (depth - p2) / (p98 - p2)
+                depth = np.clip(depth, 0.0, 1.0)
+                
+                if args.max_height is not None:
+                    max_h = args.max_height
+                    log.info("Using user-specified max height: %.1f m", max_h)
+                else:
+                    # Estimate height range from GSD and scene heuristics
+                    # Typical urban scenes: ~50m range. Rural/flat: ~20m. Hilly: ~100m.
+                    max_h = max(20.0, min(150.0, gsd * 500))
+                    log.info("Auto-estimated max height range: %.1f m (GSD=%.3f m/px)", max_h, gsd)
+                
+                depth = depth * max_h
             
             log.info("Heuristic calibration applied. New depth stats — min: %.3f  max: %.3f  mean: %.3f",
                      depth.min(), depth.max(), depth.mean())
+
+    out_dir = args.output_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stem = args.input.stem
+
+    # Emit basic metrics for the frontend Dashboard
+    log.info("METRICS:min=%.3f", depth.min())
+    log.info("METRICS:max=%.3f", depth.max())
+    log.info("METRICS:mean=%.3f", depth.mean())
 
     # ── Stage 7 (partial): Save outputs ──────────────────────────────────
     # Always save 16-bit heightmap
@@ -256,9 +344,9 @@ def main() -> int:
             z_scale=2.0,  # Apply 2x Z-exaggeration
             xy_scale=gsd
         )
-        ply_path = out_dir / f"{stem}_mesh.ply"
-        export_mesh(mesh, str(ply_path))
-        log.info("✓ 3D Mesh saved to %s", ply_path)
+        glb_path = out_dir / f"{stem}_mesh.glb"
+        export_mesh(mesh, str(glb_path))
+        log.info("✓ 3D Mesh saved to %s", glb_path)
 
     # If georeferenced, also save as GeoTIFF
     if payload.kind == "georeferenced":
