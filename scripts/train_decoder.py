@@ -28,20 +28,20 @@ from tqdm import tqdm
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Train Decoder Head for Heimdall")
-    parser.add_argument("--dataset-dir", type=Path, required=True, help="Path to training dataset.")
+    parser.add_argument("--dataset-dir", "--dataset_dir", "--data-dir", "--data_dir", dest="dataset_dir", type=Path, required=True, help="Path to training dataset.")
     parser.add_argument("--strata", type=str, default=None, help="Optional strata filter (e.g. 'urban').")
     parser.add_argument("--gpu", type=int, default=None, help="GPU index to use (defaults to 0 if available).")
     parser.add_argument("--epochs", type=int, default=10, help="Number of training epochs.")
-    parser.add_argument("--batch-size", type=int, default=4, help="Batch size (keep small for 8GB VRAM).")
+    parser.add_argument("--batch-size", "--batch_size", dest="batch_size", type=int, default=4, help="Batch size (keep small for 8GB VRAM).")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate.")
     parser.add_argument(
         "--model", type=str, default="da3-metric-l",
         choices=["vit-s", "vit-b", "vit-l", "da3-metric-l", "da3-mono-l"],
         help="Depth Anything backbone variant (default: da3-metric-l)."
     )
-    parser.add_argument("--output-dir", type=Path, default=Path("checkpoints/decoder"))
-    parser.add_argument("--patch-size", type=int, default=512, help="Patch size for random crops.")
-    parser.add_argument("--num-workers", type=int, default=4, help="DataLoader workers.")
+    parser.add_argument("--output-dir", "--output_dir", dest="output_dir", type=Path, default=Path("checkpoints/decoder"))
+    parser.add_argument("--patch-size", "--patch_size", dest="patch_size", type=int, default=512, help="Patch size for random crops.")
+    parser.add_argument("--num-workers", "--num_workers", dest="num_workers", type=int, default=2, help="DataLoader workers.")
     args = parser.parse_args()
 
     logging.basicConfig(

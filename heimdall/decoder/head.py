@@ -86,6 +86,11 @@ class DomainAdaptationHead(nn.Module):
             nn.Conv2d(hidden_dim // 2, 2, 1)
         )
         
+        # Initialize affine scale channel bias to 1.0 and shift bias to 0.0
+        with torch.no_grad():
+            self.decoder[-1].bias.data[0] = 1.0
+            self.decoder[-1].bias.data[1] = 0.0
+        
     def forward(self, rgb: torch.Tensor, relative_depth: torch.Tensor) -> torch.Tensor:
         """
         Args:

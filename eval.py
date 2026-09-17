@@ -15,14 +15,20 @@ import logging
 import sys
 import json
 from pathlib import Path
+
+# Ensure repo root is in sys.path
+repo_root = str(Path(__file__).resolve().parent)
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
 import numpy as np
 import torch
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Heimdall: Evaluation Harness")
     parser.add_argument("--weights", type=Path, help="Path to trained model weights (.pth).")
-    parser.add_argument("--val-data", type=Path, required=True, help="Path to validation dataset directory.")
-    parser.add_argument("--output", type=Path, default=Path("eval_results.json"), help="Output JSON report.")
+    parser.add_argument("--val-data", "--val_data", "--data-dir", "--data_dir", "--dataset-dir", "--dataset_dir", dest="val_data", type=Path, required=True, help="Path to validation dataset directory.")
+    parser.add_argument("--output", "--output-dir", "--output_dir", dest="output", type=Path, default=Path("eval_results.json"), help="Output JSON report or directory.")
     parser.add_argument("--model", type=str, default="da3-metric-l", help="Model backbone to use.")
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging.")
     
@@ -59,7 +65,10 @@ def main() -> int:
     
     if args.weights and args.weights.exists():
         log.info("Loading trained weights from %s", args.weights)
-        checkpoint = torch.load(args.weights, map_location=device, weights_only=True)
+        try:
+            checkpoint = torch.load(args.weights, map_location=device, weights_only=False)
+        except Exception:
+            checkpoint = torch.load(args.weights, map_location=device)
         
         # Check if this is a custom checkpoint dict (from train_decoder.py) or a raw state dict
         if "head_state_dict" in checkpoint:
@@ -133,10 +142,14 @@ def main() -> int:
     results = evaluator.evaluate_all()
     
     # Save JSON report
-    with open(args.output, "w") as f:
+    output_file = args.output
+    if output_file.is_dir():
+        output_file = output_file / "eval_results.json"
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_file, "w") as f:
         json.dump(results, f, indent=4)
         
-    log.info("Evaluation complete! Report saved to %s", args.output)
+    log.info("Evaluation complete! Report saved to %s", output_file)
     
     # Print formatted table
     print("\n" + "=" * 80)
