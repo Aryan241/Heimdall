@@ -17,7 +17,7 @@ timm>=0.9
 # ---------- Depth Anything V3 (native) ----------
 einops>=0.7
 omegaconf>=2.3
-huggingface_hub>=1.0
+huggingface_hub
 e3nn>=0.5
 
 # ---------- Geospatial ----------
