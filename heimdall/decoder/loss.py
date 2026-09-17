@@ -22,12 +22,13 @@ class SILogLoss(nn.Module):
         p = pred[mask].clamp(min=self.eps)
         t = target[mask].clamp(min=self.eps)
 
-        # Log difference
-        d = torch.log(p) - torch.log(t)
+        # Remote sensing heights can be 0 (ground level). Using log1p(x) ensures smooth non-divergent behavior at 0m.
+        d = torch.log1p(p) - torch.log1p(t)
 
         # Loss = sqrt(mean(d^2) - lambda * (mean(d))^2)
-        # Often scaled by 10 or 100 for better gradient magnitudes
-        loss = torch.sqrt((d ** 2).mean() - self.variance_focus * (d.mean() ** 2)) * 10.0
+        # Clamped with min=1e-8 to prevent NaN derivatives when variance approaches zero.
+        variance = (d ** 2).mean() - self.variance_focus * (d.mean() ** 2)
+        loss = torch.sqrt(torch.clamp(variance, min=1e-8)) * 10.0
         return loss
 
 class GradientMatchingLoss(nn.Module):
@@ -42,7 +43,7 @@ class GradientMatchingLoss(nn.Module):
         if mask.sum() == 0:
             return torch.tensor(0.0, device=pred.device, requires_grad=True)
 
-        loss = 0.0
+        loss = torch.tensor(0.0, device=pred.device)
         # Compute gradient matching at multiple scales
         for i in range(self.scales):
             step = 2 ** i
@@ -60,9 +61,9 @@ class GradientMatchingLoss(nn.Module):
 
             # We use L1 loss on the gradients
             if mask_x.sum() > 0:
-                loss += F.l1_loss(diff_pred_x[mask_x], diff_target_x[mask_x])
+                loss = loss + F.l1_loss(diff_pred_x[mask_x], diff_target_x[mask_x])
             if mask_y.sum() > 0:
-                loss += F.l1_loss(diff_pred_y[mask_y], diff_target_y[mask_y])
+                loss = loss + F.l1_loss(diff_pred_y[mask_y], diff_target_y[mask_y])
 
         return loss
 
@@ -86,7 +87,7 @@ class MetricDepthLoss(nn.Module):
         Expects pred and target shapes: (B, 1, H, W)
         """
         # Create validity mask (ignore missing data / negative heights)
-        mask = (target > -1000) & (~torch.isnan(target))
+        mask = (target > -1000) & (~torch.isnan(target)) & (~torch.isinf(target))
         
         if mask.sum() == 0:
             zero = torch.tensor(0.0, device=pred.device, requires_grad=True)
