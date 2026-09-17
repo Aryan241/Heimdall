@@ -13,7 +13,10 @@
 # limitations under the License.
 
 import os
-import pycolmap
+try:
+    import pycolmap
+except ImportError:
+    pycolmap = None
 import cv2 as cv
 import numpy as np
 

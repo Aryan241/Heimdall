@@ -22,8 +22,22 @@ batch dimension removal, and Prediction object creation.
 from __future__ import annotations
 
 import numpy as np
-import torch
-from addict import Dict as AddictDict
+try:
+    from addict import Dict as AddictDict
+except ImportError:
+    class AddictDict(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError:
+                raise AttributeError(name)
+        def __setattr__(self, name, value):
+            self[name] = value
+        def __delattr__(self, name):
+            try:
+                del self[name]
+            except KeyError:
+                raise AttributeError(name)
 
 from depth_anything_3.specs import Prediction
 

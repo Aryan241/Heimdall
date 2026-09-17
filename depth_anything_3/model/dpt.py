@@ -16,8 +16,22 @@
 from typing import Dict as TyDict
 from typing import List, Sequence, Tuple
 import torch
-import torch.nn as nn
-from addict import Dict
+try:
+    from addict import Dict
+except ImportError:
+    class Dict(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError:
+                raise AttributeError(name)
+        def __setattr__(self, name, value):
+            self[name] = value
+        def __delattr__(self, name):
+            try:
+                del self[name]
+            except KeyError:
+                raise AttributeError(name)
 from einops import rearrange
 
 from depth_anything_3.model.utils.head_utils import (

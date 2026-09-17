@@ -12,8 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any
-from addict import Dict
+try:
+    from addict import Dict
+except ImportError:
+    class Dict(dict):
+        @classmethod
+        def __class_getitem__(cls, item):
+            return cls
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError:
+                raise AttributeError(name)
+        def __setattr__(self, name, value):
+            self[name] = value
+        def __delattr__(self, name):
+            try:
+                del self[name]
+            except KeyError:
+                raise AttributeError(name)
 
 
 class Registry(Dict[str, Any]):
