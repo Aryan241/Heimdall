@@ -5,6 +5,7 @@ Converts 2D heightmaps (DSM) and RGB images into 3D meshes (.ply)
 using trimesh. Generates triangular faces and applies vertex colors.
 """
 
+from pathlib import Path
 import logging
 import numpy as np
 import trimesh

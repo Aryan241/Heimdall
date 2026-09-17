@@ -22,6 +22,7 @@ batch dimension removal, and Prediction object creation.
 from __future__ import annotations
 
 import numpy as np
+import torch
 try:
     from addict import Dict as AddictDict
 except ImportError:

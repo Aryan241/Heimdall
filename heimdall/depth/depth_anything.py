@@ -7,8 +7,10 @@ ViT-B/ViT-L checkpoints. The backbone is kept FROZEN — we only run inference h
 
 from __future__ import annotations
 
+import sys
 import logging
 from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
 import torch
