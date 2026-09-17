@@ -19,6 +19,8 @@ einops>=0.7
 omegaconf>=2.3
 huggingface_hub
 e3nn>=0.5
+addict
+imageio
 
 # ---------- Geospatial ----------
 rasterio>=1.3
