@@ -59,14 +59,27 @@ def main() -> int:
     
     if args.weights and args.weights.exists():
         log.info("Loading trained weights from %s", args.weights)
-        # Handle cases where model was trained with DataParallel or DDP
-        state_dict = torch.load(args.weights, map_location=device, weights_only=True)
-        # Unwrap module. prefix if necessary
-        new_state_dict = {}
-        for k, v in state_dict.items():
-            new_key = k.replace("module.", "") if k.startswith("module.") else k
-            new_state_dict[new_key] = v
-        model.load_state_dict(new_state_dict, strict=True)
+        checkpoint = torch.load(args.weights, map_location=device, weights_only=True)
+        
+        # Check if this is a custom checkpoint dict (from train_decoder.py) or a raw state dict
+        if "head_state_dict" in checkpoint:
+            log.info("Detected custom checkpoint format. Loading 'head_state_dict' only...")
+            state_dict = checkpoint["head_state_dict"]
+            # Unwrap module. prefix if necessary
+            new_state_dict = {}
+            for k, v in state_dict.items():
+                new_key = k.replace("module.", "") if k.startswith("module.") else k
+                new_state_dict[new_key] = v
+            model.head.load_state_dict(new_state_dict, strict=True)
+        else:
+            log.info("Detected raw model state dict. Loading full model...")
+            state_dict = checkpoint
+            # Unwrap module. prefix if necessary
+            new_state_dict = {}
+            for k, v in state_dict.items():
+                new_key = k.replace("module.", "") if k.startswith("module.") else k
+                new_state_dict[new_key] = v
+            model.load_state_dict(new_state_dict, strict=True)
     else:
         log.warning("No weights provided or file not found! Evaluating baseline untrained model...")
         
