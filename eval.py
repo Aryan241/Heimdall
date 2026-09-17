@@ -109,7 +109,8 @@ def main() -> int:
                 
                 try:
                     # Forward pass
-                    pred_tensor = model(image_tensor) # (1, 1, H, W)
+                    outputs = model(image_tensor)
+                    pred_tensor = outputs["pred_height"] # (1, 1, H, W)
                     
                     # Convert to numpy for evaluator
                     pred_depth = pred_tensor.squeeze().cpu().numpy()
