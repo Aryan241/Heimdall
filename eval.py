@@ -2,12 +2,12 @@
 """
 Heimdall — eval.py
 ==================
-Evaluates a trained model against ground truth DEMs using standard metrics.
-Supports stratified evaluation across different categories (e.g., urban, forested).
+Evaluates a trained Domain Adaptation model against ground truth DEMs.
+Supports HDF5 (GAMUS) and standard image datasets out of the box using our Dataset loader.
 
 Usage
 -----
-    python eval.py --weights best_model.pt --val-data /path/to/val --output results.json
+    python eval.py --weights checkpoints/decoder/decoder_epoch_10.pth --val-data data/GAMUS --output results.json
 """
 
 import argparse
@@ -16,12 +16,14 @@ import sys
 import json
 from pathlib import Path
 import numpy as np
+import torch
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Heimdall: Evaluation Harness")
-    parser.add_argument("--weights", type=Path, help="Path to trained model weights.")
+    parser.add_argument("--weights", type=Path, help="Path to trained model weights (.pth).")
     parser.add_argument("--val-data", type=Path, required=True, help="Path to validation dataset directory.")
     parser.add_argument("--output", type=Path, default=Path("eval_results.json"), help="Output JSON report.")
+    parser.add_argument("--model", type=str, default="da3-metric-l", help="Model backbone to use.")
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging.")
     
     args = parser.parse_args()
@@ -33,8 +35,11 @@ def main() -> int:
     )
     log = logging.getLogger("heimdall.eval")
     
-    # Imports deferred
-    from heimdall.eval.evaluator import Evaluator, compute_metrics
+    # Imports deferred for speed
+    from heimdall.eval.evaluator import Evaluator
+    from heimdall.decoder.model import DomainAdaptationWrapper
+    from heimdall.decoder.dataset import RemoteSensingHeightDataset
+    from heimdall.device import get_device
     
     log.info("Starting Evaluation Harness...")
     log.info("Validation Data: %s", args.val_data)
@@ -42,67 +47,73 @@ def main() -> int:
         log.info("Weights: %s", args.weights)
         
     evaluator = Evaluator()
+    device = get_device()
     
     # ── METRICS COMPUTATION ───────────────────────────────────────────────────
     if not args.val_data.exists():
         log.error("Validation data directory not found: %s", args.val_data)
         return 1
 
-    img_dir = args.val_data / "images"
-    depth_dir = args.val_data / "depths"
+    log.info("Loading model (%s)...", args.model)
+    model = DomainAdaptationWrapper(model_key=args.model, device_str=device.type)
     
-    if not img_dir.exists() or not depth_dir.exists():
-        log.warning("Could not find images/ and depths/ subdirectories in %s. Please ensure GAMUS dataset format.", args.val_data)
-        log.warning("Running mock evaluation since valid dataset was not found...")
+    if args.weights and args.weights.exists():
+        log.info("Loading trained weights from %s", args.weights)
+        # Handle cases where model was trained with DataParallel or DDP
+        state_dict = torch.load(args.weights, map_location=device, weights_only=True)
+        # Unwrap module. prefix if necessary
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            new_key = k.replace("module.", "") if k.startswith("module.") else k
+            new_state_dict[new_key] = v
+        model.load_state_dict(new_state_dict, strict=True)
+    else:
+        log.warning("No weights provided or file not found! Evaluating baseline untrained model...")
+        
+    model.to(device)
+    model.eval()
+
+    log.info("Initializing dataset loader...")
+    # Use our unified dataset loader (handles H5, png, tif automatically)
+    dataset = RemoteSensingHeightDataset(args.val_data, patch_size=512, split="val")
+    
+    if len(dataset) == 0:
+        log.error("No valid image/height pairs found in %s", args.val_data)
+        log.warning("Running mock evaluation fallback...")
         # Mock eval fallback for testing without data
         pred_urban = np.random.uniform(5.0, 30.0, (512, 512))
         gt_urban = pred_urban + np.random.normal(0, 1.5, (512, 512))
         evaluator.add_result("urban", pred_urban, gt_urban)
     else:
-        log.info("Loading models...")
-        import torch
-        from heimdall.depth.depth_anything import extract_depth, _load_model
-        from heimdall.device import get_device
-        from heimdall.ingestion.loader import ingest
-        import rasterio
+        log.info("Found %d validation samples. Beginning evaluation...", len(dataset))
         
-        device = get_device()
-        processor, model = _load_model("v2_large", device.type)
-        
-        images = list(img_dir.glob("*.png")) + list(img_dir.glob("*.jpg")) + list(img_dir.glob("*.tif"))
-        log.info("Found %d validation images. Beginning evaluation...", len(images))
-        
-        for img_path in images:
-            # Assuming matching filename for depth map
-            gt_path = depth_dir / (img_path.stem + ".tif")
-            if not gt_path.exists():
-                gt_path = depth_dir / (img_path.stem + ".png")
-                if not gt_path.exists():
-                    continue
-            
-            try:
-                # Load inputs
-                img_payload = ingest(img_path)
-                with rasterio.open(gt_path) as src:
-                    gt_depth = src.read(1)
+        with torch.no_grad():
+            for idx in range(len(dataset)):
+                sample = dataset[idx]
+                image_tensor = sample["image"].unsqueeze(0).to(device) # (1, 3, H, W)
+                gt_tensor = sample["height"] # (1, H, W)
+                img_path = Path(sample["image_path"])
                 
-                # Inference
-                # Optionally pass args.weights logic here if using domain adaptation head
-                pred_depth = extract_depth(img_payload.image, processor, model, device)
-                
-                # Reshape/resize pred to match GT if necessary
-                import cv2
-                if pred_depth.shape != gt_depth.shape:
-                    pred_depth = cv2.resize(pred_depth, (gt_depth.shape[1], gt_depth.shape[0]), interpolation=cv2.INTER_LINEAR)
+                try:
+                    # Forward pass
+                    pred_tensor = model(image_tensor) # (1, 1, H, W)
                     
-                # Add to evaluator. (Using "overall" or inferring category from filename/metadata)
-                category = "urban" if "urban" in img_path.name.lower() else "forested" if "forest" in img_path.name.lower() else "general"
-                evaluator.add_result(category, pred_depth, gt_depth)
-                
-                if args.verbose:
-                    log.debug("Evaluated %s", img_path.name)
-            except Exception as e:
-                log.error("Failed evaluating %s: %s", img_path.name, e)
+                    # Convert to numpy for evaluator
+                    pred_depth = pred_tensor.squeeze().cpu().numpy()
+                    gt_depth = gt_tensor.squeeze().cpu().numpy()
+                    
+                    # Add to evaluator. (Inferring category from filename)
+                    category = "urban" if "urban" in img_path.name.lower() else "forested" if "forest" in img_path.name.lower() else "general"
+                    evaluator.add_result(category, pred_depth, gt_depth)
+                    
+                    if args.verbose:
+                        log.debug("Evaluated %s", img_path.name)
+                        
+                    if (idx + 1) % 50 == 0:
+                        log.info("Processed %d / %d samples...", idx + 1, len(dataset))
+                        
+                except Exception as e:
+                    log.error("Failed evaluating %s: %s", img_path.name, e)
     
     log.info("Computing metrics across all categories...")
     results = evaluator.evaluate_all()
@@ -124,8 +135,9 @@ def main() -> int:
         print(f"{cat:<15} | {mets['rmse']:<8.3f} | {mets['abs_rel']:<8.3f} | {mets['delta1']:<10.3f} | {mets['delta2']:<10.3f} | {mets['delta3']:<10.3f}")
         
     print("-" * 80)
-    o = results["overall"]
-    print(f"{'OVERALL':<15} | {o['rmse']:<8.3f} | {o['abs_rel']:<8.3f} | {o['delta1']:<10.3f} | {o['delta2']:<10.3f} | {o['delta3']:<10.3f}")
+    if "overall" in results:
+        o = results["overall"]
+        print(f"{'OVERALL':<15} | {o['rmse']:<8.3f} | {o['abs_rel']:<8.3f} | {o['delta1']:<10.3f} | {o['delta2']:<10.3f} | {o['delta3']:<10.3f}")
     print("=" * 80 + "\n")
     
     return 0
