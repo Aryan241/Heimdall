@@ -111,41 +111,60 @@ def main() -> int:
     for epoch in range(1, args.epochs + 1):
         model.train()
         epoch_loss = 0.0
+        epoch_silog = 0.0
         epoch_start = time.time()
+        
+        accumulate_grad_batches = 4
+        optimizer.zero_grad(set_to_none=True)
         
         pbar = tqdm(train_loader, desc=f"Epoch {epoch}/{args.epochs}", file=sys.stdout)
         for batch_idx, batch in enumerate(pbar):
             images = batch["image"].to(device)
             heights = batch["height"].to(device)
             
-            optimizer.zero_grad(set_to_none=True)
-            
             if use_amp:
                 with torch.cuda.amp.autocast():
                     outputs = model(images, target_height=heights)
-                    loss = outputs["loss"]
+                    loss = outputs["loss"] / accumulate_grad_batches
                 scaler.scale(loss).backward()
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.head.parameters(), max_norm=1.0)
-                scaler.step(optimizer)
-                scaler.update()
+                
+                if (batch_idx + 1) % accumulate_grad_batches == 0 or (batch_idx + 1) == len(train_loader):
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(model.head.parameters(), max_norm=1.0)
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad(set_to_none=True)
             else:
                 outputs = model(images, target_height=heights)
-                loss = outputs["loss"]
+                loss = outputs["loss"] / accumulate_grad_batches
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.head.parameters(), max_norm=1.0)
-                optimizer.step()
                 
-            epoch_loss += loss.item()
-            pbar.set_postfix(loss=f"{loss.item():.4f}", lr=f"{optimizer.param_groups[0]['lr']:.2e}")
+                if (batch_idx + 1) % accumulate_grad_batches == 0 or (batch_idx + 1) == len(train_loader):
+                    torch.nn.utils.clip_grad_norm_(model.head.parameters(), max_norm=1.0)
+                    optimizer.step()
+                    optimizer.zero_grad(set_to_none=True)
+                
+            # Log exact unscaled values for monitoring
+            l_val = outputs["loss"].item()
+            silog_val = outputs["silog"].item() if "silog" in outputs and outputs["silog"] is not None else 0.0
+            
+            epoch_loss += l_val
+            epoch_silog += silog_val
+            
+            pbar.set_postfix(
+                loss=f"{l_val:.2f}", 
+                silog=f"{silog_val:.2f}",
+                lr=f"{optimizer.param_groups[0]['lr']:.2e}"
+            )
         
         scheduler.step()
             
         avg_loss = epoch_loss / len(train_loader)
+        avg_silog = epoch_silog / len(train_loader)
         elapsed = time.time() - epoch_start
         logger.info(
-            "Epoch %d/%d complete | Avg Loss: %.4f | Time: %.1fs | LR: %.2e",
-            epoch, args.epochs, avg_loss, elapsed, optimizer.param_groups[0]['lr']
+            "Epoch %d/%d complete | Avg Loss: %.4f | Avg SILog: %.4f | Time: %.1fs | LR: %.2e",
+            epoch, args.epochs, avg_loss, avg_silog, elapsed, optimizer.param_groups[0]['lr']
         )
         
         # Save checkpoint
