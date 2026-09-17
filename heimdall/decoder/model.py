@@ -38,8 +38,9 @@ class DomainAdaptationWrapper(nn.Module):
         # Trainable ASPP head
         self.head = DomainAdaptationHead(in_channels=4, hidden_dim=128)
         
-        # Loss function (L1 loss is a good baseline for metric depth)
-        self.loss_fn = nn.L1Loss()
+        # SOTA Combined Loss Function
+        from heimdall.decoder.loss import MetricDepthLoss
+        self.loss_fn = MetricDepthLoss(alpha=1.0, beta=0.5, gamma=0.1)
 
     def train(self, mode: bool = True):
         """Override train to ensure backbone stays in eval mode."""
@@ -102,13 +103,8 @@ class DomainAdaptationWrapper(nn.Module):
                 pred_height, size=target_height.shape[2:], mode="bilinear", align_corners=False
             )
             
-        loss = None
+        loss_dict = {"loss": None, "silog": None, "grad": None, "l1": None}
         if target_height is not None:
-            # Mask out invalid pixels (e.g. nodata values like <= -9999 or NaN)
-            valid_mask = (target_height > -1000) & (~torch.isnan(target_height))
-            if valid_mask.sum() > 0:
-                loss = self.loss_fn(pred_height[valid_mask], target_height[valid_mask])
-            else:
-                loss = torch.tensor(0.0, device=rgb_tensor.device, requires_grad=True)
+            loss_dict = self.loss_fn(pred_height, target_height)
                 
-        return {"pred_height": pred_height, "loss": loss}
+        return {"pred_height": pred_height, **loss_dict}

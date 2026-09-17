@@ -78,12 +78,12 @@ class DomainAdaptationHead(nn.Module):
         # Multi-scale context
         self.aspp = ASPP(hidden_dim, hidden_dim)
         
-        # Decoder/Projection
+        # Decoder/Projection (2 channels: Scale and Shift)
         self.decoder = nn.Sequential(
             nn.Conv2d(hidden_dim, hidden_dim // 2, 3, padding=1, bias=False),
             nn.BatchNorm2d(hidden_dim // 2),
             nn.ReLU(inplace=True),
-            nn.Conv2d(hidden_dim // 2, 1, 1)
+            nn.Conv2d(hidden_dim // 2, 2, 1)
         )
         
     def forward(self, rgb: torch.Tensor, relative_depth: torch.Tensor) -> torch.Tensor:
@@ -106,7 +106,13 @@ class DomainAdaptationHead(nn.Module):
         feat = self.stem(x)
         feat = self.aspp(feat)
         out = self.decoder(feat)
+        scale = out[:, 0:1, :, :]
+        shift = out[:, 1:2, :, :]
         
-        # We add the relative depth back as a skip connection (scaled) to ease learning,
-        # so the network only has to learn the residual/scale transform.
-        return out + relative_depth
+        # SOTA Affine Translation: instead of blindly adding features,
+        # we predict a pixel-wise scale and shift to transform the relative disparity
+        # into absolute metric space.
+        metric_height = scale * relative_depth + shift
+        
+        # Absolute height must be non-negative
+        return F.relu(metric_height)
