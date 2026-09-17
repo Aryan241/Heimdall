@@ -17,6 +17,11 @@ import sys
 import time
 from pathlib import Path
 
+# Ensure the root directory is in sys.path so 'heimdall' module can be found
+repo_root = str(Path(__file__).resolve().parent.parent)
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
