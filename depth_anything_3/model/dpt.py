@@ -16,6 +16,7 @@
 from typing import Dict as TyDict
 from typing import List, Sequence, Tuple
 import torch
+import torch.nn as nn
 try:
     from addict import Dict
 except ImportError:
