@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Heimdall Engine",
-  description: "Monocular Depth & Mesh Pipeline",
+  title: "Heimdall — DepthWizard",
+  description: "Single-view satellite height estimation (DSM) and interactive 3D flythrough",
 };
 
 export default function RootLayout({

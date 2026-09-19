@@ -1,6 +1,6 @@
 # === Data & artifacts (never committed) ===
 data/
-checkpoints/
+checkpoints/*
 outputs/
 *.tif
 *.tiff
@@ -49,4 +49,15 @@ ehthumbs.db
 
 # === Node (frontend) ===
 node_modules/
-package-lock.json
+
+# === Shipped artefacts (exceptions to the rules above) ===
+# Trained decoder head used by default (5 MB) — the repo must run out of the box.
+!checkpoints/decoder/
+checkpoints/decoder/*
+!checkpoints/decoder/decoder_best_all.pth
+# Bundled demo scene for the web viewer.
+!heimdall-web/public/demo/*.tif
+# Test / pipeline caches
+.pytest_cache/
+# Stray Next dev cache created when the workspace root changed
+heimdall-web/heimdall-web/

@@ -1,0 +1,12 @@
+venv/
+data/
+outputs/
+**/node_modules/
+heimdall-web/.next/
+.git/
+**/__pycache__/
+*.docx
+checkpoints/*
+!checkpoints/decoder/
+checkpoints/decoder/*
+!checkpoints/decoder/decoder_best_all.pth

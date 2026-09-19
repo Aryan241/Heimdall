@@ -2,24 +2,21 @@
 """
 Heimdall — infer.py
 ===================
-End-to-end CLI: ingest image → run Depth Anything V2 → save depth outputs.
+Single-view optical image → DSM (GeoTIFF) + textured 3D mesh (GLB).
 
-Implements Stage 1 (ingestion/routing) + Stage 2 (relative depth extraction)
-as a standalone runnable pipeline.
-
-Usage
------
-    # Single plain image (Mac MPS or CPU):
-    python infer.py --input sample.jpg --output-dir outputs/
-
-    # GeoTIFF input:
+Examples
+--------
+    # GeoTIFF → absolute DSM (terrain from Copernicus GLO-30 is fetched automatically)
     python infer.py --input scene.tif --output-dir outputs/
 
-    # Use ViT-Large backbone:
-    python infer.py --input sample.jpg --output-dir outputs/ --model vit-l
+    # GeoTIFF with your own SRTM / CartoDEM tile and a few GCPs
+    python infer.py --input scene.tif --reference-dem srtm.tif --gcps gcps.csv
 
-    # Force CPU:
-    python infer.py --input sample.jpg --output-dir outputs/ --device cpu
+    # Plain JPG/PNG → relative DSM (metres above ground if the GSD is known)
+    python infer.py --input image.jpg --gsd 0.5
+
+    # Backbone only (no trained head): relative height, RANSAC-calibrated if a DEM is given
+    python infer.py --input scene.tif --weights none
 """
 
 from __future__ import annotations
@@ -27,342 +24,91 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-import time
 from pathlib import Path
 
-import numpy as np
+
+def build_parser() -> argparse.ArgumentParser:
+    from heimdall.pipeline import DEFAULT_WEIGHTS
+    p = argparse.ArgumentParser(description="Heimdall: single-view height estimation",
+                                formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__)
+    p.add_argument("--input", "-i", required=True, type=Path, help="PNG/JPG/TIFF or GeoTIFF image.")
+    p.add_argument("--output-dir", "-o", type=Path, default=Path("outputs"))
+    p.add_argument("--name", default=None, help="Output file prefix (default: input file stem).")
+    p.add_argument("--weights", default=str(DEFAULT_WEIGHTS),
+                   help="Decoder head checkpoint (.pth), or 'none' for backbone-only relative mode.")
+    p.add_argument("--model", "-m", default=None,
+                   choices=["vit-s", "vit-b", "vit-l", "da3-metric-l", "da3-mono-l"],
+                   help="Backbone (default: the one stored in the checkpoint, else da3-metric-l).")
+    p.add_argument("--device", "-d", default=None, help="cuda / mps / cpu (auto if omitted).")
+    p.add_argument("--reference-dem", type=Path, default=None, help="Low-res DEM GeoTIFF (SRTM, Copernicus, CartoDEM…).")
+    p.add_argument("--no-auto-dem", action="store_true", help="Don't download Copernicus GLO-30 automatically.")
+    p.add_argument("--gcps", type=Path, default=None, help="CSV of ground control points (lon,lat,z | x,y,z | row,col,z).")
+    p.add_argument("--gsd", type=float, default=None, help="Ground sample distance override (m/px).")
+    p.add_argument("--target-gsd", type=float, default=None, help="Working GSD (default 0.33 m = training GSD).")
+    p.add_argument("--max-side", type=int, default=8192, help="Cap on the working grid's longest side.")
+    p.add_argument("--bands", default=None, help="1-based band order for R,G,B, e.g. '3,2,1' for BGR products.")
+    p.add_argument("--tile-size", type=int, default=512)
+    p.add_argument("--overlap", type=int, default=128)
+    p.add_argument("--tta", action="store_true", help="Flip test-time augmentation (≈2× slower, slightly better).")
+    p.add_argument("--no-refine", action="store_true",
+                   help="Skip planar roof/wall regularisation (keep the raw per-pixel prediction).")
+    p.add_argument("--no-mesh", action="store_true", help="Skip GLB mesh export.")
+    p.add_argument("--export-mesh", action="store_true", help=argparse.SUPPRESS)  # legacy flag (mesh is default)
+    p.add_argument("--mesh-grid", type=int, default=640, help="Max mesh vertices per side.")
+    p.add_argument("--max-height", type=float, default=None, help="Relative mode: scale 0–1 output to metres.")
+    p.add_argument("--use-segmentation", action="store_true", help="Relative mode: ground mask for RANSAC.")
+    p.add_argument("--quiet-events", action="store_true", help="Don't print @@HEIMDALL progress events.")
+    p.add_argument("--verbose", "-v", action="store_true")
+    return p
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Heimdall: Single-view depth estimation (Stage 1+2)",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--input", "-i", required=True, type=Path,
-        help="Path to input image (PNG/JPG/BMP or GeoTIFF).",
-    )
-    parser.add_argument(
-        "--weights", type=str, default=None,
-        help="Path to custom Heimdall decoder weights (.pth).",
-    )
-    parser.add_argument(
-        "--output-dir", "-o", type=Path, default=Path("outputs"),
-        help="Directory to write outputs. Created if it doesn't exist.",
-    )
-    parser.add_argument(
-        "--reference-dem", type=Path, default=None,
-        help="Path to low-res reference DEM for RANSAC scale calibration (Stage 5).",
-    )
-    parser.add_argument(
-        "--model", "-m", choices=["vit-s", "vit-b", "vit-l", "da3-metric-l", "da3-mono-l"], default="da3-metric-l",
-        help="Depth Anything backbone (default: da3-metric-l).",
-    )
-    parser.add_argument(
-        "--device", "-d", type=str, default=None,
-        help="Force device (cuda/mps/cpu). Auto-detected if omitted.",
-    )
-    parser.add_argument(
-        "--tile-size", type=int, default=512,
-        help="Tile size for large-image tiling (default: 512).",
-    )
-    parser.add_argument(
-        "--overlap", type=int, default=64,
-        help="Overlap between tiles in pixels (default: 64).",
-    )
-    parser.add_argument(
-        "--no-colorize", action="store_true",
-        help="Skip saving colorized depth visualization.",
-    )
-    parser.add_argument(
-        "--use-segmentation", action="store_true",
-        help="Run Stage 4 semantic segmentation to generate a ground mask for RANSAC.",
-    )
-    parser.add_argument(
-        "--export-mesh", action="store_true",
-        help="Run Stage 8 to export a 3D textured mesh (.ply).",
-    )
-    parser.add_argument(
-        "--max-height", type=float, default=None,
-        help="Override max height (meters) for heuristic calibration. If unset, uses p2-p98 percentile range.",
-    )
-    parser.add_argument(
-        "--fp16", action="store_true",
-        help="Use FP16 half-precision inference on CUDA for 2x speed and 0.5x VRAM.",
-    )
-    parser.add_argument(
-        "--verbose", "-v", action="store_true",
-        help="Enable debug logging.",
-    )
-
-    args = parser.parse_args()
-
-    # ── Logging ──────────────────────────────────────────────────────────
+    args = build_parser().parse_args()
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(asctime)s  %(name)-30s  %(levelname)-7s  %(message)s",
+        format="%(asctime)s  %(name)-26s  %(levelname)-7s  %(message)s",
         datefmt="%H:%M:%S",
     )
-    log = logging.getLogger("heimdall.infer")
+    from heimdall.pipeline import PipelineConfig, emit, run
 
-    # ── Imports (deferred so --help is instant) ──────────────────────────
-    from heimdall.device import get_device
-    from heimdall.ingestion.loader import ingest
-    from heimdall.depth.depth_anything import predict_depth_tiled
-    from heimdall.output.writers import (
-        save_depth_png16,
-        save_depth_colorized,
-        save_depth_geotiff,
+    weights = None if str(args.weights).lower() in ("none", "", "off") else Path(args.weights)
+    cfg = PipelineConfig(
+        input=args.input,
+        output_dir=args.output_dir,
+        name=args.name,
+        weights=weights,
+        model_key=args.model,
+        device=args.device,
+        reference_dem=args.reference_dem,
+        auto_dem=not args.no_auto_dem,
+        gcps=args.gcps,
+        gsd=args.gsd,
+        target_gsd=args.target_gsd,
+        max_side=args.max_side,
+        tile_size=args.tile_size,
+        overlap=args.overlap,
+        tta=args.tta,
+        refine=not args.no_refine,
+        band_order=[int(b) for b in args.bands.split(",")] if args.bands else None,
+        export_mesh=not args.no_mesh,
+        mesh_grid=args.mesh_grid,
+        max_height=args.max_height,
+        use_segmentation=args.use_segmentation,
+        events=not args.quiet_events,
     )
+    try:
+        result = run(cfg)
+    except Exception as exc:
+        logging.getLogger("heimdall").exception("Pipeline failed")
+        if cfg.events:
+            emit("error", message=f"{type(exc).__name__}: {exc}")
+        return 1
 
-    # ── Stage 1: Ingest ──────────────────────────────────────────────────
-    log.info("═" * 60)
-    log.info("HEIMDALL — Single-View Depth Estimation")
-    log.info("═" * 60)
-
-    device = get_device(args.device)
-    log.info("Device: %s", device)
-
-    payload = ingest(args.input)
-    log.info("Input type: %s  |  Shape: %s", payload.kind, payload.image.shape[:2])
-
-    if payload.kind == "georeferenced":
-        log.info("CRS: %s  |  Bounds: %s", payload.geo.crs_epsg, payload.geo.bounds)
-
-    # --- OLD BEHAVIOR (Commented out as requested) ---
-    # # In the past, we processed the image at its absolute full resolution.
-    # # This caused extreme processing times (e.g. 15-20 mins for 400MP images).
-    # pass 
-    # ---------------------------------------------------
-
-    # --- NEW BEHAVIOR: Auto-resize for faster processing ---
-    max_dim = 2048
-    orig_h, orig_w = payload.image.shape[:2]
-    if max(orig_h, orig_w) > max_dim:
-        scale = max_dim / max(orig_h, orig_w)
-        new_h, new_w = int(orig_h * scale), int(orig_w * scale)
-        log.info("Auto-resizing image from %dx%d to %dx%d for faster processing", orig_w, orig_h, new_w, new_h)
-        from PIL import Image
-        import numpy as np
-        pil_img = Image.fromarray(payload.image).resize((new_w, new_h), Image.Resampling.LANCZOS)
-        payload.image = np.array(pil_img)
-        
-        # Scale the GeoTIFF transform if it exists to preserve spatial accuracy
-        if payload.kind == "georeferenced" and payload.geo is not None:
-            t = payload.geo.transform
-            scale_x = orig_w / new_w
-            scale_y = orig_h / new_h
-            # Transform is (a, b, c, d, e, f, 0, 0, 1) where a and e are pixel sizes
-            payload.geo.transform = (t[0] * scale_x, t[1], t[2], t[3], t[4] * scale_y, t[5]) + t[6:]
-    # -------------------------------------------------------
-
-    # ── Stage 2: Depth inference ─────────────────────────────────────────
-    log.info("Running Depth inference (%s) …", args.model)
-    t0 = time.perf_counter()
-
-    gsd = 1.0
-    if args.weights:
-        log.info("Loading Custom Fine-Tuned Heimdall Decoder from %s...", args.weights)
-        import torch
-        from heimdall.decoder.model import DomainAdaptationWrapper
-        
-        # Initialize the wrapper and load the trained head weights
-        wrapper = DomainAdaptationWrapper(model_key=args.model, device_str=str(device))
-        wrapper.head.load_state_dict(torch.load(args.weights, map_location='cpu'))
-        wrapper = wrapper.to(device).eval()
-        
-        h, w = payload.image.shape[:2]
-        if h <= args.tile_size and w <= args.tile_size:
-            # Single pass for small images
-            img_tensor = torch.from_numpy(payload.image).float() / 255.0
-            img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0).to(device)
-            with torch.no_grad():
-                res = wrapper(img_tensor)
-                pred_height = res["pred_height"]
-                if pred_height.shape[2:] != (h, w):
-                    pred_height = torch.nn.functional.interpolate(
-                        pred_height, size=(h, w), mode="bilinear", align_corners=False
-                    )
-            depth = pred_height.squeeze().cpu().numpy()
-        else:
-            # Tiling for large images to prevent OOM
-            from heimdall.ingestion.tiling import tile_image, stitch_tiles
-            log.info("Image %dx%d exceeds tile size %d — tiling.", h, w, args.tile_size)
-            tiles = tile_image(payload.image, tile_size=args.tile_size, overlap=args.overlap)
-            depth_tiles = []
-            
-            for i, (tile_arr, meta) in enumerate(tiles):
-                if (i + 1) % 100 == 0 or i == 0:
-                    log.info("Processing tile %d/%d", i + 1, len(tiles))
-                img_tensor = torch.from_numpy(tile_arr).float() / 255.0
-                img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0).to(device)
-                
-                with torch.no_grad():
-                    res = wrapper(img_tensor)
-                    pred_height = res["pred_height"]
-                    th, tw = tile_arr.shape[:2]
-                    if pred_height.shape[2:] != (th, tw):
-                        pred_height = torch.nn.functional.interpolate(
-                            pred_height, size=(th, tw), mode="bilinear", align_corners=False
-                        )
-                
-                depth_tiles.append((pred_height.squeeze().cpu().numpy(), meta))
-                
-            depth = stitch_tiles(depth_tiles, original_shape=(h, w), tile_size=args.tile_size, overlap=args.overlap)
-        
-        # For mesh export, estimate XY scale
-        from heimdall.calibration.heuristic import estimate_gsd
-        gsd = estimate_gsd(str(args.input))
-        log.info("Custom Decoder inference complete in %.1fs  |  Output shape: %s", time.perf_counter() - t0, depth.shape)
-        log.info("Depth stats (Absolute Metric) — min: %.3f  max: %.3f  mean: %.3f", depth.min(), depth.max(), depth.mean())
-        
-        # We skip Stage 5/6 calibration because the custom wrapper outputs absolute metric height!
-        
-    else:
-        # For a truly impressive high-res visualization, DO NOT downsample. 
-        # A 1024x1024 image will generate 1 million vertices, which WebGL can easily handle.
-        downsample_factor = 1
-        depth = predict_depth_tiled(
-            payload.image,
-            model_key=args.model,
-            tile_size=args.tile_size,
-            overlap=args.overlap,
-            device=device,
-        )
-
-        elapsed = time.perf_counter() - t0
-        log.info("Depth inference complete in %.1fs  |  Output shape: %s", elapsed, depth.shape)
-        log.info("Depth stats — min: %.3f  max: %.3f  mean: %.3f  std: %.3f",
-                 depth.min(), depth.max(), depth.mean(), depth.std())
-
-    out_dir = args.output_dir
-    out_dir.mkdir(parents=True, exist_ok=True)
-    stem = args.input.stem
-
-    # ── Stage 4 (optional): Semantic Segmentation for Ground Masking ────
-    ground_mask = None
-    if not args.weights and args.use_segmentation:
-        log.info("Running Stage 4: Semantic Segmentation (Ground Masking)...")
-        from heimdall.segmentation.segformer import GroundSegmenter
-        segmenter = GroundSegmenter(device=device)
-        ground_mask = segmenter.get_ground_mask(payload.image)
-        ground_pct = (ground_mask.sum().item() / ground_mask.numel()) * 100
-        log.info("Ground mask generated. Ground coverage: %.1f%%", ground_pct)
-
-    # ── Stage 5/6: Scale Calibration (Only if using relative depth) ─────────────────
-    if not args.weights:
-        if args.reference_dem:
-            log.info("Running Stage 5: RANSAC Scale Calibration using %s", args.reference_dem)
-            import torch
-            from heimdall.calibration.ransac import fit_affine_transform, apply_transform
-            
-            dem_payload = ingest(args.reference_dem)
-            ref_np = dem_payload.image
-            if ref_np.ndim == 3:
-                ref_np = ref_np.mean(axis=-1)
-                
-            ref_tensor = torch.from_numpy(ref_np).float()
-            depth_tensor = torch.from_numpy(depth).float()
-            
-            scale, shift = fit_affine_transform(depth_tensor, ref_tensor, mask=ground_mask)
-            calibrated_depth_tensor = apply_transform(depth_tensor, scale, shift)
-            depth = calibrated_depth_tensor.numpy()
-            
-            log.info("Calibration applied. New depth stats — min: %.3f  max: %.3f  mean: %.3f",
-                     depth.min(), depth.max(), depth.mean())
-        else:
-            log.info("No reference DEM provided. Running Stage 6: Heuristic Calibration...")
-            from heimdall.calibration.heuristic import estimate_gsd
-            
-            # Estimate X/Y scale
-            gsd = estimate_gsd(str(args.input))
-            
-            # Data-driven Z-scale using percentile range instead of hardcoded 30m
-            depth_min = depth.min()
-            depth_max = depth.max()
-            if depth_max > depth_min:
-                p2 = float(np.percentile(depth, 2))
-                p98 = float(np.percentile(depth, 98))
-                depth = (depth - p2) / (p98 - p2)
-                depth = np.clip(depth, 0.0, 1.0)
-                
-                if args.max_height is not None:
-                    max_h = args.max_height
-                    log.info("Using user-specified max height: %.1f m", max_h)
-                else:
-                    # Estimate height range from GSD and scene heuristics
-                    # Typical urban scenes: ~50m range. Rural/flat: ~20m. Hilly: ~100m.
-                    max_h = max(20.0, min(150.0, gsd * 500))
-                    log.info("Auto-estimated max height range: %.1f m (GSD=%.3f m/px)", max_h, gsd)
-                
-                depth = depth * max_h
-            
-            log.info("Heuristic calibration applied. New depth stats — min: %.3f  max: %.3f  mean: %.3f",
-                     depth.min(), depth.max(), depth.mean())
-
-    out_dir = args.output_dir
-    out_dir.mkdir(parents=True, exist_ok=True)
-    stem = args.input.stem
-
-    # Emit basic metrics for the frontend Dashboard
-    log.info("METRICS:min=%.3f", depth.min())
-    log.info("METRICS:max=%.3f", depth.max())
-    log.info("METRICS:mean=%.3f", depth.mean())
-
-    # ── Stage 7 (partial): Save outputs ──────────────────────────────────
-    # Always save 16-bit heightmap
-    png16_path = save_depth_png16(depth, out_dir / f"{stem}_depth16.png")
-    log.info("✓ 16-bit depth PNG: %s", png16_path)
-
-    # Colorized visualization
-    if not args.no_colorize:
-        vis_path = save_depth_colorized(depth, out_dir / f"{stem}_depth_vis.png")
-        log.info("✓ Colorized depth viz: %s", vis_path)
-
-    # Save raw float32 numpy for downstream stages
-    npy_path = out_dir / f"{stem}_depth.npy"
-    np.save(npy_path, depth)
-    log.info("✓ Raw depth array: %s", npy_path)
-
-    # ── Stage 8: Mesh Generation ─────────────────────────────────────────
-    if args.export_mesh:
-        log.info("Running Stage 8: Mesh Generation...")
-        from heimdall.mesh.mesher import heightmap_to_mesh, export_mesh
-        
-        # Determine downsample factor based on image size to prevent crashing
-        # A 1024x1024 image is 1M vertices. Let's aim for ~250k vertices max by default.
-        max_vertices = 250_000
-        total_pixels = depth.shape[0] * depth.shape[1]
-        downsample_factor = 1
-        while (total_pixels / (downsample_factor**2)) > max_vertices:
-            downsample_factor += 1
-            
-        mesh = heightmap_to_mesh(
-            heightmap=depth,
-            rgb_image=payload.image,
-            downsample_factor=downsample_factor,
-            z_scale=2.0,  # Apply 2x Z-exaggeration
-            xy_scale=gsd
-        )
-        glb_path = out_dir / f"{stem}_mesh.glb"
-        export_mesh(mesh, str(glb_path))
-        log.info("✓ 3D Mesh saved to %s", glb_path)
-
-    # If georeferenced, also save as GeoTIFF
-    if payload.kind == "georeferenced":
-        geo_path = save_depth_geotiff(
-            depth,
-            out_dir / f"{stem}_depth.tif",
-            crs_wkt=payload.geo.crs_wkt,
-            transform_tuple=payload.geo.transform,
-        )
-        log.info("✓ GeoTIFF depth: %s", geo_path)
-
-    # ── Summary ──────────────────────────────────────────────────────────
-    log.info("═" * 60)
-    log.info("Pipeline complete. Outputs in: %s", out_dir.resolve())
-    log.info("═" * 60)
-
+    s = result.meta["stats"]["surface"]
+    print(f"\n{result.product}: min {s['min']:.2f}  max {s['max']:.2f}  mean {s['mean']:.2f} "
+          f"{result.meta['units']}  →  {Path(cfg.output_dir).resolve()}")
+    for k, v in result.files.items():
+        print(f"  {k:<11} {v}")
     return 0
 
 

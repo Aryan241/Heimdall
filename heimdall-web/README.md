@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Heimdall web app
 
-## Getting Started
+Next.js 16 (App Router) + React Three Fiber front end for the Heimdall pipeline.
 
-First, run the development server:
+## Run
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm ci
+npm run build && npm start      # production (http://localhost:3000)
+npm run dev                     # development
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The server spawns the Python pipeline in the parent folder. Override locations with
+`HEIMDALL_ROOT`, `HEIMDALL_PYTHON` and `HEIMDALL_JOBS_DIR` (default `../outputs/jobs`).
+`output: "standalone"` is enabled; the Docker image in the repo root runs `.next/standalone/server.js`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## API
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Route | Purpose |
+|---|---|
+| `POST /api/jobs` | multipart `image` (+ `reference_dem`, `gcps`, `options` JSON). Streams SSE: `job`, `event` (pipeline stages/progress/warnings), `log`, `done`, `error`. |
+| `GET /api/jobs` | recent jobs |
+| `GET /api/jobs/:id/files/:name` | job outputs (GeoTIFF, GLB, PNG, JSON, height grid) |
+| `POST /api/jobs/:id/validate` | multipart `reference` DSM/LiDAR GeoTIFF → metrics, scatter, histogram, error map |
 
-## Learn More
+## Viewer
 
-To learn more about Next.js, take a look at the following resources:
+* **Orbit / Fly / Measure** modes. Fly is first-person (WASD, Space/E up, Q/C down, Shift boost), with speed scaled to the scene and terrain collision.
+* **Layers**: optical texture, elevation, height above ground, slope (degrees), all with sun-direction relief shading.
+* **Hover readout** of elevation, above-ground height, slope, map coordinates (raster CRS) and approximate lat/lon, sampled from the exported height grid (true metres, independent of the vertical-exaggeration slider).
+* **Measure**: horizontal and 3-D distance, height difference, grade and an elevation profile.
+* **Flood**: water plane at a chosen level, with the inundated fraction and area.
+* **Screenshot** export.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`public/demo/` holds a bundled demo scene, generated with `infer.py --name demo`, that loads on first visit.

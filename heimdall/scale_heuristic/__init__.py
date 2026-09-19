@@ -1,1 +1,0 @@
-# heimdall.scale_heuristic

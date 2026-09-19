@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """
-Stage 3 — Training CLI Script for Domain Adaptation
+Stage 3 — Train the ASPP decoder head on a frozen Depth Anything backbone.
 
-Trains the ASPP decoder head on top of a frozen Depth Anything V2 or V3 backbone.
-Supports GAMUS (HDF5), DFC2019, and ISPRS datasets.
+Supports GAMUS (HDF5), DFC2019 and ISPRS layouts. The best checkpoint is selected by
+*validation RMSE* (native-GSD centre crops), not by training loss.
 
 Usage:
-  python scripts/train_decoder.py --dataset-dir data/GAMUS --gpu 0 --model da3-metric-l --batch-size 4
+  # from scratch
+  python scripts/train_decoder.py --dataset-dir data/GAMUS --epochs 40 --batch-size 4
+  # continue / fine-tune an existing head (e.g. the epoch-78 checkpoint) at a lower LR
+  python scripts/train_decoder.py --dataset-dir data/GAMUS --resume checkpoints/decoder/decoder_best_all.pth \
+         --epochs 10 --lr 2e-5
 """
 
 from __future__ import annotations
@@ -17,184 +21,140 @@ import sys
 import time
 from pathlib import Path
 
-# Ensure the root directory is in sys.path so 'heimdall' module can be found
 repo_root = str(Path(__file__).resolve().parent.parent)
 if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
 
+import numpy as np
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Train Decoder Head for Heimdall")
-    parser.add_argument("--dataset-dir", "--dataset_dir", "--data-dir", "--data_dir", dest="dataset_dir", type=Path, required=True, help="Path to training dataset.")
-    parser.add_argument("--strata", type=str, default=None, help="Optional strata filter (e.g. 'urban').")
-    parser.add_argument("--gpu", type=int, default=None, help="GPU index to use (defaults to 0 if available).")
-    parser.add_argument("--epochs", type=int, default=10, help="Number of training epochs.")
-    parser.add_argument("--batch-size", "--batch_size", dest="batch_size", type=int, default=4, help="Batch size (keep small for 8GB VRAM).")
-    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate.")
-    parser.add_argument(
-        "--model", type=str, default="da3-metric-l",
-        choices=["vit-s", "vit-b", "vit-l", "da3-metric-l", "da3-mono-l"],
-        help="Depth Anything backbone variant (default: da3-metric-l)."
-    )
-    parser.add_argument("--output-dir", "--output_dir", dest="output_dir", type=Path, default=Path("checkpoints/decoder"))
-    parser.add_argument("--patch-size", "--patch_size", dest="patch_size", type=int, default=512, help="Patch size for random crops.")
-    parser.add_argument("--num-workers", "--num_workers", dest="num_workers", type=int, default=2, help="DataLoader workers.")
-    args = parser.parse_args()
+    ap = argparse.ArgumentParser(description="Train the Heimdall decoder head")
+    ap.add_argument("--dataset-dir", "--dataset_dir", "--data-dir", "--data_dir", dest="dataset_dir", type=Path, required=True)
+    ap.add_argument("--strata", type=str, default=None, help="Optional tile-id filter (e.g. a city code).")
+    ap.add_argument("--gpu", type=int, default=None)
+    ap.add_argument("--epochs", type=int, default=10)
+    ap.add_argument("--batch-size", "--batch_size", dest="batch_size", type=int, default=4)
+    ap.add_argument("--accumulate", type=int, default=4, help="Gradient accumulation steps.")
+    ap.add_argument("--lr", type=float, default=1e-4)
+    ap.add_argument("--model", type=str, default="da3-metric-l",
+                    choices=["vit-s", "vit-b", "vit-l", "da3-metric-l", "da3-mono-l"])
+    ap.add_argument("--output-dir", "--output_dir", dest="output_dir", type=Path, default=Path("checkpoints/decoder"))
+    ap.add_argument("--patch-size", "--patch_size", dest="patch_size", type=int, default=512)
+    ap.add_argument("--num-workers", "--num_workers", dest="num_workers", type=int, default=2)
+    ap.add_argument("--resume", type=Path, default=None, help="Head checkpoint to start from.")
+    ap.add_argument("--val-split", default="val", help="Validation split folder (val / test).")
+    ap.add_argument("--val-max", type=int, default=300, help="Max validation tiles per epoch.")
+    ap.add_argument("--no-augment", action="store_true")
+    args = ap.parse_args()
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout)]
-    )
-    logger = logging.getLogger("train")
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                        handlers=[logging.StreamHandler(sys.stdout)])
+    log = logging.getLogger("train")
 
-    # Defer heavy imports
     from heimdall.decoder.dataset import RemoteSensingHeightDataset
     from heimdall.decoder.model import DomainAdaptationWrapper
     from heimdall.device import get_device, supports_amp
 
-    # Setup device
-    if args.gpu is not None and torch.cuda.is_available():
-        device = torch.device(f"cuda:{args.gpu}")
-    else:
-        device = get_device()
-    logger.info("Using device: %s", device)
-    
+    device = torch.device(f"cuda:{args.gpu}") if args.gpu is not None and torch.cuda.is_available() else get_device()
     use_amp = supports_amp(device)
-    if use_amp:
-        logger.info("AMP (Automatic Mixed Precision) enabled.")
+    log.info("Device: %s  AMP: %s", device, use_amp)
 
-    # Setup Dataset & DataLoader
-    logger.info("Loading dataset from %s ...", args.dataset_dir)
-    train_ds = RemoteSensingHeightDataset(
-        args.dataset_dir, split="train", strata=args.strata, patch_size=args.patch_size
-    )
+    train_ds = RemoteSensingHeightDataset(args.dataset_dir, split="train", strata=args.strata,
+                                          patch_size=args.patch_size, augment=not args.no_augment)
     if len(train_ds) == 0:
-        logger.error(
-            "Dataset is empty! Check that %s contains images/ and heights/ subdirectories "
-            "with train/val splits. For GAMUS, ensure .h5 files are present.",
-            args.dataset_dir
-        )
+        log.error("Training set is empty — expected images/ and heights/ (with train/ val/ splits) under %s",
+                  args.dataset_dir)
         return 1
-    
-    logger.info("Dataset loaded: %d training samples.", len(train_ds))
+    val_ds = RemoteSensingHeightDataset(args.dataset_dir, split=args.val_split, strata=args.strata,
+                                        patch_size=args.patch_size)
+    if len(val_ds) > args.val_max:
+        val_ds = Subset(val_ds, np.linspace(0, len(val_ds) - 1, args.val_max).astype(int).tolist())
+    log.info("Train tiles: %d   Val tiles: %d", len(train_ds), len(val_ds))
 
-    train_loader = DataLoader(
-        train_ds, batch_size=args.batch_size, shuffle=True,
-        num_workers=args.num_workers, pin_memory=True, drop_last=True
-    )
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
+                              pin_memory=device.type == "cuda", drop_last=True)
+    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers) \
+        if len(val_ds) else None
 
-    # Setup Model
-    logger.info("Initializing Model (Backbone: %s) ...", args.model)
     model = DomainAdaptationWrapper(model_key=args.model, device_str=str(device)).to(device)
-    
-    trainable_params = sum(p.numel() for p in model.head.parameters())
-    total_params = sum(p.numel() for p in model.parameters())
-    logger.info("Trainable params: %.2f M / Total: %.2f M", trainable_params / 1e6, total_params / 1e6)
-
-    # Optimizer (only train the head)
+    start_epoch = 1
     optimizer = torch.optim.AdamW(model.head.parameters(), lr=args.lr, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=1e-6)
-    scaler = torch.cuda.amp.GradScaler() if use_amp else None
+    if args.resume:
+        ckpt = torch.load(args.resume, map_location="cpu", weights_only=False)
+        model.head.load_state_dict({k.replace("module.", ""): v for k, v in ckpt["head_state_dict"].items()})
+        log.info("Resumed head from %s (epoch %s)", args.resume, ckpt.get("epoch"))
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=args.lr * 0.01)
+    scaler = torch.amp.GradScaler("cuda") if use_amp else None
 
-    # Training Loop
+    log.info("Trainable params: %.2f M", sum(p.numel() for p in model.head.parameters()) / 1e6)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    best_loss = float("inf")
-    
-    logger.info("=" * 60)
-    logger.info("Starting training for %d epochs (%d batches/epoch)", args.epochs, len(train_loader))
-    logger.info("=" * 60)
+    tag = args.strata or "all"
+    best_rmse = float("inf")
 
-    for epoch in range(1, args.epochs + 1):
+    for epoch in range(start_epoch, args.epochs + 1):
         model.train()
-        epoch_loss = 0.0
-        epoch_silog = 0.0
-        epoch_start = time.time()
-        
-        accumulate_grad_batches = 4
+        t0 = time.time()
+        running = 0.0
         optimizer.zero_grad(set_to_none=True)
-        
         pbar = tqdm(train_loader, desc=f"Epoch {epoch}/{args.epochs}", file=sys.stdout)
-        for batch_idx, batch in enumerate(pbar):
-            images = batch["image"].to(device)
-            heights = batch["height"].to(device)
-            
-            if use_amp:
-                with torch.cuda.amp.autocast():
-                    outputs = model(images, target_height=heights)
-                    loss = outputs["loss"] / accumulate_grad_batches
-                scaler.scale(loss).backward()
-                
-                if (batch_idx + 1) % accumulate_grad_batches == 0 or (batch_idx + 1) == len(train_loader):
+        for bi, batch in enumerate(pbar):
+            images, heights = batch["image"].to(device), batch["height"].to(device)
+            with torch.autocast(device_type=device.type, enabled=use_amp):
+                out = model(images, target_height=heights)
+                loss = out["loss"] / args.accumulate
+            (scaler.scale(loss) if scaler else loss).backward()
+            if (bi + 1) % args.accumulate == 0 or bi + 1 == len(train_loader):
+                if scaler:
                     scaler.unscale_(optimizer)
-                    torch.nn.utils.clip_grad_norm_(model.head.parameters(), max_norm=1.0)
-                    scaler.step(optimizer)
-                    scaler.update()
-                    optimizer.zero_grad(set_to_none=True)
-            else:
-                outputs = model(images, target_height=heights)
-                loss = outputs["loss"] / accumulate_grad_batches
-                loss.backward()
-                
-                if (batch_idx + 1) % accumulate_grad_batches == 0 or (batch_idx + 1) == len(train_loader):
-                    torch.nn.utils.clip_grad_norm_(model.head.parameters(), max_norm=1.0)
+                torch.nn.utils.clip_grad_norm_(model.head.parameters(), max_norm=1.0)
+                if scaler:
+                    scaler.step(optimizer); scaler.update()
+                else:
                     optimizer.step()
-                    optimizer.zero_grad(set_to_none=True)
-                
-            # Log exact unscaled values for monitoring
-            l_val = outputs["loss"].item()
-            silog_val = outputs["silog"].item() if "silog" in outputs and outputs["silog"] is not None else 0.0
-            
-            epoch_loss += l_val
-            epoch_silog += silog_val
-            
-            pbar.set_postfix(
-                loss=f"{l_val:.2f}", 
-                silog=f"{silog_val:.2f}",
-                lr=f"{optimizer.param_groups[0]['lr']:.2e}"
-            )
-        
+                optimizer.zero_grad(set_to_none=True)
+            running += out["loss"].item()
+            pbar.set_postfix(loss=f"{out['loss'].item():.3f}", lr=f"{optimizer.param_groups[0]['lr']:.2e}")
         scheduler.step()
-            
-        avg_loss = epoch_loss / len(train_loader)
-        avg_silog = epoch_silog / len(train_loader)
-        elapsed = time.time() - epoch_start
-        logger.info(
-            "Epoch %d/%d complete | Avg Loss: %.4f | Avg SILog: %.4f | Time: %.1fs | LR: %.2e",
-            epoch, args.epochs, avg_loss, avg_silog, elapsed, optimizer.param_groups[0]['lr']
-        )
-        
-        # Save checkpoint
-        ckpt_path = args.output_dir / f"decoder_ep{epoch:02d}_{args.strata or 'all'}.pth"
-        torch.save({
-            "epoch": epoch,
-            "head_state_dict": model.head.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "loss": avg_loss,
-            "model_key": args.model,
-        }, ckpt_path)
-        logger.info("Checkpoint saved: %s", ckpt_path)
-        
-        # Save best model
-        if avg_loss < best_loss:
-            best_loss = avg_loss
-            best_path = args.output_dir / f"decoder_best_{args.strata or 'all'}.pth"
-            torch.save({
-                "epoch": epoch,
-                "head_state_dict": model.head.state_dict(),
-                "loss": avg_loss,
-                "model_key": args.model,
-            }, best_path)
-            logger.info("New best model saved: %s (loss: %.4f)", best_path, best_loss)
-        
-    logger.info("=" * 60)
-    logger.info("Training complete! Best loss: %.4f", best_loss)
-    logger.info("Best checkpoint: %s", args.output_dir / f"decoder_best_{args.strata or 'all'}.pth")
-    logger.info("=" * 60)
+        train_loss = running / max(1, len(train_loader))
+
+        val = evaluate(model, val_loader, device) if val_loader else {}
+        log.info("Epoch %d | train loss %.4f | val RMSE %.3f m  MAE %.3f m  r %.3f | %.0fs",
+                 epoch, train_loss, val.get("rmse", float("nan")), val.get("mae", float("nan")),
+                 val.get("pearson_r", float("nan")), time.time() - t0)
+
+        state = {"epoch": epoch, "head_state_dict": model.head.state_dict(), "loss": train_loss,
+                 "val": val, "model_key": args.model}
+        torch.save({**state, "optimizer_state_dict": optimizer.state_dict()},
+                   args.output_dir / f"decoder_ep{epoch:02d}_{tag}.pth")
+        score = val.get("rmse", train_loss)
+        if score < best_rmse:
+            best_rmse = score
+            torch.save(state, args.output_dir / f"decoder_best_{tag}.pth")
+            log.info("New best checkpoint (val RMSE %.3f m)", best_rmse)
+
+    log.info("Done. Best val RMSE: %.3f m → %s", best_rmse, args.output_dir / f"decoder_best_{tag}.pth")
     return 0
+
+
+@torch.no_grad()
+def evaluate(model, loader, device) -> dict:
+    from heimdall.eval.metrics import RunningMetrics
+    model.eval()
+    acc = RunningMetrics(max_pixels_per_sample=50_000)
+    for batch in loader:
+        pred = model(batch["image"].to(device))["pred_height"].float().cpu().numpy()
+        ref = batch["height"].numpy()
+        for p, r in zip(pred, ref):
+            r = r[0].copy()
+            r[(r < -100) | (r > 1000)] = np.nan
+            acc.add("val", np.clip(p[0], 0, None), r)
+    model.train()
+    return acc.report().get("val", {})
+
 
 if __name__ == "__main__":
     sys.exit(main())

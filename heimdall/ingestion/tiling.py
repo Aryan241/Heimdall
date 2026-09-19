@@ -1,6 +1,9 @@
 """
 Stage 1 — Tiling: split large images into fixed-size patches with overlap,
-and stitch results back into the original extent.
+and stitch per-tile predictions back with feathered (raised-cosine) blending.
+
+The last tile along each axis is placed flush with the image edge, so tiles are
+only padded when the whole image is smaller than one tile.
 """
 
 from __future__ import annotations
@@ -20,78 +23,68 @@ class TileMeta:
     col_start: int
     row_end: int   # exclusive
     col_end: int   # exclusive
-    pad_bottom: int  # pixels padded on bottom edge
-    pad_right: int   # pixels padded on right edge
+    pad_bottom: int
+    pad_right: int
+
+
+def _starts(length: int, tile: int, stride: int) -> list[int]:
+    if length <= tile:
+        return [0]
+    starts = list(range(0, length - tile, stride))
+    starts.append(length - tile)
+    return sorted(set(starts))
 
 
 def tile_image(
     image: np.ndarray,
     tile_size: int = 512,
-    overlap: int = 64,
+    overlap: int = 128,
 ) -> list[tuple[np.ndarray, TileMeta]]:
-    """Split *image* (H×W×C) into tiles of *tile_size* with *overlap*.
-
-    Edge tiles are zero-padded to maintain consistent tile dimensions.
-    Returns list of (tile_array, tile_meta) pairs.
-    """
+    """Split *image* (H×W×C) into tile_size² tiles overlapping by *overlap* pixels."""
     h, w = image.shape[:2]
-    stride = tile_size - overlap
+    stride = max(1, tile_size - overlap)
     tiles: list[tuple[np.ndarray, TileMeta]] = []
-
-    for r in range(0, h, stride):
-        for c in range(0, w, stride):
-            r_end = min(r + tile_size, h)
-            c_end = min(c + tile_size, w)
+    for r in _starts(h, tile_size, stride):
+        for c in _starts(w, tile_size, stride):
+            r_end, c_end = min(r + tile_size, h), min(c + tile_size, w)
             tile = image[r:r_end, c:c_end]
-
-            pad_b = tile_size - tile.shape[0]
-            pad_r = tile_size - tile.shape[1]
+            pad_b, pad_r = tile_size - tile.shape[0], tile_size - tile.shape[1]
             if pad_b > 0 or pad_r > 0:
-                tile = np.pad(
-                    tile,
-                    ((0, pad_b), (0, pad_r), (0, 0)),
-                    mode="reflect",
-                )
-
-            meta = TileMeta(
-                row_start=r, col_start=c,
-                row_end=r_end, col_end=c_end,
-                pad_bottom=pad_b, pad_right=pad_r,
-            )
-            tiles.append((tile, meta))
-
-    logger.info(
-        "Tiled %dx%d image into %d patches (%dx%d, overlap=%d)",
-        h, w, len(tiles), tile_size, tile_size, overlap,
-    )
+                pad = ((0, pad_b), (0, pad_r)) + ((0, 0),) * (image.ndim - 2)
+                tile = np.pad(tile, pad, mode="symmetric")
+            tiles.append((tile, TileMeta(r, c, r_end, c_end, pad_b, pad_r)))
+    logger.info("Tiled %dx%d image into %d patches (%d², overlap=%d)", h, w, len(tiles), tile_size, overlap)
     return tiles
+
+
+def _ramp(n: int, overlap: int, at_start: bool, at_end: bool) -> np.ndarray:
+    w = np.ones(n, dtype=np.float32)
+    k = min(overlap, n // 2)
+    if k > 0:
+        ramp = 0.5 - 0.5 * np.cos(np.pi * (np.arange(k) + 0.5) / k)
+        if not at_start:
+            w[:k] = ramp
+        if not at_end:
+            w[n - k:] = ramp[::-1]
+    return np.maximum(w, 1e-3)
 
 
 def stitch_tiles(
     tiles: list[tuple[np.ndarray, TileMeta]],
     original_shape: tuple[int, int],
     tile_size: int = 512,
-    overlap: int = 64,
+    overlap: int = 128,
 ) -> np.ndarray:
-    """Stitch depth-map tiles back into the original image extent.
-
-    Uses linear blending in overlap regions. Input tiles are 2-D (H×W) depth maps.
-    """
+    """Blend 2-D tile predictions into the full extent with raised-cosine weights."""
     h, w = original_shape
-    output = np.zeros((h, w), dtype=np.float32)
-    weight = np.zeros((h, w), dtype=np.float32)
-
-    for tile, meta in tiles:
-        # Remove any padding
-        t = tile[: meta.row_end - meta.row_start, : meta.col_end - meta.col_start]
-        r0, c0 = meta.row_start, meta.col_start
-        r1, c1 = meta.row_end, meta.col_end
-
-        # Simple averaging blend — overlap pixels get contributions from
-        # multiple tiles and the weight accumulator normalizes them.
-        output[r0:r1, c0:c1] += t.astype(np.float32)
-        weight[r0:r1, c0:c1] += 1.0
-
-    # Avoid division by zero (shouldn't happen with correct tiling)
-    weight = np.maximum(weight, 1e-8)
-    return output / weight
+    output = np.zeros((h, w), dtype=np.float64)
+    weight = np.zeros((h, w), dtype=np.float64)
+    for tile, m in tiles:
+        th, tw = m.row_end - m.row_start, m.col_end - m.col_start
+        t = tile[:th, :tw].astype(np.float64)
+        wr = _ramp(th, overlap, m.row_start == 0, m.row_end == h)
+        wc = _ramp(tw, overlap, m.col_start == 0, m.col_end == w)
+        wt = np.outer(wr, wc)
+        output[m.row_start:m.row_end, m.col_start:m.col_end] += t * wt
+        weight[m.row_start:m.row_end, m.col_start:m.col_end] += wt
+    return (output / np.maximum(weight, 1e-12)).astype(np.float32)
