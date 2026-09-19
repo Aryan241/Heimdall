@@ -3,7 +3,7 @@ Stage 3 — Unified Dataset Loader for Domain Adaptation
 
 Loads RGB imagery and ground-truth height maps from the GAMUS dataset (HDF5 .h5)
 and legacy formats (DFC2019 / ISPRS with .png/.tif files).
-Handles random cropping, normalization, and strata filtering.
+Handles random cropping, flip/rotation augmentation, and strata filtering.
 """
 
 from __future__ import annotations
@@ -62,11 +62,13 @@ class RemoteSensingHeightDataset(Dataset):
         patch_size: int = 512,
         split: Literal["train", "val"] = "train",
         strata: str | None = None,
+        augment: bool = True,
     ):
         self.dataset_dir = Path(dataset_dir)
         self.patch_size = patch_size
         self.split = split
         self.strata = strata
+        self.augment = augment
         
         # Try GAMUS structure first: images/{split}/ and heights/{split}/
         self.img_dir = self.dataset_dir / "images" / split
@@ -206,31 +208,39 @@ class RemoteSensingHeightDataset(Dataset):
         hgt_np = self._load_height(hgt_path)
         hgt_tensor = torch.from_numpy(hgt_np).unsqueeze(0)  # (1, H, W)
         
-        # Random Crop for training
-        if self.split == "train":
-            w, h = img_pil.size
-            if h >= self.patch_size and w >= self.patch_size:
-                i = random.randint(0, h - self.patch_size)
-                j = random.randint(0, w - self.patch_size)
-                img_pil = TF.crop(img_pil, i, j, self.patch_size, self.patch_size)
-                hgt_tensor = hgt_tensor[:, i:i+self.patch_size, j:j+self.patch_size]
+        w, h = img_pil.size
+        ps = self.patch_size
+        if h >= ps and w >= ps:
+            if self.split == "train":
+                i, j = random.randint(0, h - ps), random.randint(0, w - ps)
             else:
-                img_pil = TF.resize(img_pil, [self.patch_size, self.patch_size])
-                hgt_tensor = torch.nn.functional.interpolate(
-                    hgt_tensor.unsqueeze(0), size=[self.patch_size, self.patch_size], mode='bilinear', align_corners=False
-                ).squeeze(0)
+                # Evaluation: deterministic centre crop at native GSD (resizing would change
+                # the ground sample distance the head is calibrated for).
+                i, j = (h - ps) // 2, (w - ps) // 2
+            img_pil = TF.crop(img_pil, i, j, ps, ps)
+            hgt_tensor = hgt_tensor[:, i:i + ps, j:j + ps]
         else:
-            # Validation: resize for consistent batching
-            img_pil = TF.resize(img_pil, [self.patch_size, self.patch_size])
+            img_pil = TF.resize(img_pil, [ps, ps])
             hgt_tensor = torch.nn.functional.interpolate(
-                hgt_tensor.unsqueeze(0), size=[self.patch_size, self.patch_size], mode='bilinear', align_corners=False
+                hgt_tensor.unsqueeze(0), size=[ps, ps], mode="bilinear", align_corners=False
             ).squeeze(0)
 
-        # Convert RGB to tensor [0, 1]
         img_tensor = TF.to_tensor(img_pil)
-        
+
+        if self.split == "train" and self.augment:
+            # Nadir heights are invariant to flips and 90° rotations.
+            if random.random() < 0.5:
+                img_tensor, hgt_tensor = img_tensor.flip(-1), hgt_tensor.flip(-1)
+            if random.random() < 0.5:
+                img_tensor, hgt_tensor = img_tensor.flip(-2), hgt_tensor.flip(-2)
+            k = random.randint(0, 3)
+            if k:
+                img_tensor, hgt_tensor = torch.rot90(img_tensor, k, (-2, -1)), torch.rot90(hgt_tensor, k, (-2, -1))
+            # Mild photometric jitter (sensor / illumination differences).
+            img_tensor = (img_tensor * random.uniform(0.85, 1.15) + random.uniform(-0.05, 0.05)).clamp(0, 1)
+
         return {
-            "image": img_tensor,   # (3, H, W)
-            "height": hgt_tensor,  # (1, H, W)
-            "image_path": str(img_path)
+            "image": img_tensor.contiguous(),
+            "height": hgt_tensor.contiguous(),
+            "image_path": str(img_path),
         }

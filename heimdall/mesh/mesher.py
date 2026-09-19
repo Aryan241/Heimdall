@@ -1,125 +1,116 @@
 """
-Stage 8 — Mesh Generation
+Stage 8 — Mesh generation.
 
-Converts 2D heightmaps (DSM) and RGB images into 3D meshes (.ply)
-using trimesh. Generates triangular faces and applies vertex colors.
+Builds a regular-grid terrain mesh from a height map and drapes the *full-resolution*
+optical image over it as a UV texture (not per-vertex colours), exported as glTF
+binary (.glb) in glTF's native frame:
+
+    +X = image columns (east for north-up rasters)
+    +Y = up (height, true metres — no vertical exaggeration is baked in)
+    +Z = image rows (south for north-up rasters)
+
+Heights are stored relative to ``height_offset`` (returned) so that vertex Y values
+stay small; absolute height = vertex.y + height_offset.
 """
 
-from pathlib import Path
+from __future__ import annotations
+
 import logging
+from dataclasses import dataclass
+from pathlib import Path
+
 import numpy as np
 import trimesh
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-def heightmap_to_mesh(
-    heightmap: np.ndarray, 
-    rgb_image: np.ndarray, 
-    downsample_factor: int = 2,
-    z_scale: float = 1.0,
-    xy_scale: float = 1.0
-) -> trimesh.Trimesh:
-    """
-    Converts a heightmap and an RGB image into a 3D mesh.
-    
-    Args:
-        heightmap: (H, W) array of heights (meters).
-        rgb_image: (H, W, 3) uint8 array of colors.
-        downsample_factor: Int > 0 to reduce mesh density (1 = native resolution, 2 = half res, etc.)
-                           Native resolution creates massive .ply files that crash viewers.
-        z_scale: Multiplier for the Z axis (height).
-        xy_scale: Multiplier for the X and Y axes (meters per pixel).
-        
-    Returns:
-        trimesh.Trimesh object.
-    """
-    logger.info("Generating 3D mesh (downsample=%d)...", downsample_factor)
-    
-    orig_rows, orig_cols = heightmap.shape
-    
-    # Downsample the arrays to save memory/disk space
-    if downsample_factor > 1:
-        # Use simple slicing for speed
-        h_sampled = heightmap[::downsample_factor, ::downsample_factor]
-        rgb_sampled = rgb_image[::downsample_factor, ::downsample_factor]
-    else:
-        h_sampled = heightmap
-        rgb_sampled = rgb_image
-        
-    rows, cols = h_sampled.shape
-    
-    # Generate X, Y coordinates
-    # We center the mesh around 0,0 for easier viewing.
-    # We use original dims to ensure physical size remains constant regardless of downsampling.
-    x_lin = np.linspace(-orig_cols/2, orig_cols/2, cols) * xy_scale
-    y_lin = np.linspace(-orig_rows/2, orig_rows/2, rows) * xy_scale
-    xx, yy = np.meshgrid(x_lin, y_lin)
-    
-    # Invert Y so the image isn't flipped upside down in 3D space
-    yy = -yy
-    
-    # Flatten the arrays to create vertices
-    x_flat = xx.flatten()
-    y_flat = yy.flatten()
-    z_flat = h_sampled.flatten() * z_scale
-    
-    vertices = np.column_stack((x_flat, y_flat, z_flat))
-    
-    # Create vertex colors
-    if rgb_sampled.shape[2] == 3:
-        # Add alpha channel for trimesh (Nx4)
-        colors = np.column_stack((
-            rgb_sampled.reshape(-1, 3), 
-            np.full(len(x_flat), 255, dtype=np.uint8)
-        ))
-    else:
-        colors = rgb_sampled.reshape(-1, 4)
 
-    # Generate triangular faces linking the vertices
-    logger.debug("Triangulating grid of %d vertices...", len(vertices))
-    faces = []
-    
-    # Standard grid triangulation
-    # For a grid of (R rows, C cols):
-    # node(r, c) = r * C + c
-    # Triangle 1: (r, c), (r+1, c), (r, c+1)
-    # Triangle 2: (r+1, c), (r+1, c+1), (r, c+1)
-    
-    # Optimize by doing it vectorized
-    r = np.arange(rows - 1)
-    c = np.arange(cols - 1)
-    rr, cc = np.meshgrid(r, c, indexing='ij')
-    
-    # Vertex indices
-    v00 = rr * cols + cc
-    v10 = (rr + 1) * cols + cc
-    v01 = rr * cols + (cc + 1)
-    v11 = (rr + 1) * cols + (cc + 1)
-    
-    v00 = v00.flatten()
-    v10 = v10.flatten()
-    v01 = v01.flatten()
-    v11 = v11.flatten()
-    
-    # Two triangles per grid cell
-    tri1 = np.column_stack((v00, v10, v01))
-    tri2 = np.column_stack((v10, v11, v01))
-    
-    faces = np.vstack((tri1, tri2))
-    
-    # Construct the mesh
-    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, vertex_colors=colors)
-    logger.info("Mesh generated successfully: %d vertices, %d faces", len(vertices), len(faces))
-    
-    return mesh
+@dataclass
+class MeshInfo:
+    path: Path
+    grid_shape: tuple[int, int]
+    width_m: float
+    depth_m: float
+    height_offset: float
+    vertices: int
+    faces: int
 
-def export_mesh(mesh, path: str | Path) -> Path:
-    """Export the mesh as a GLB (GLTF Binary) file."""
-    path = Path(path)
-    if path.suffix != ".glb":
-        path = path.with_suffix(".glb")
-        
-    logger.info("Exporting GLB mesh to %s...", path)
-    mesh.export(str(path), file_type="glb")
-    logger.info("GLB export complete.")
+
+def _grid(heightmap: np.ndarray, max_grid_side: int) -> np.ndarray:
+    h, w = heightmap.shape
+    s = min(1.0, max_grid_side / max(h, w))
+    gh, gw = max(2, int(round(h * s))), max(2, int(round(w * s)))
+    if (gh, gw) == (h, w):
+        return heightmap.astype(np.float32)
+    # Box-filtered downsample (BOX) keeps mean heights instead of aliasing roof edges.
+    img = Image.fromarray(np.nan_to_num(heightmap, nan=float(np.nanmin(heightmap))).astype(np.float32))
+    return np.asarray(img.resize((gw, gh), Image.Resampling.BOX if s < 1 else Image.Resampling.BILINEAR))
+
+
+def build_textured_mesh(
+    heightmap: np.ndarray,
+    texture_path: str | Path,
+    gsd_m: float,
+    max_grid_side: int = 640,
+    height_offset: float | None = None,
+) -> tuple[trimesh.Trimesh, dict]:
+    """Grid mesh (≤ max_grid_side vertices per side) with UVs onto *texture_path*.
+
+    NaN cells in *heightmap* are treated as nodata: their triangles are removed.
+    """
+    rows_px, cols_px = heightmap.shape
+    grid = _grid(heightmap, max_grid_side)
+    gr, gc = grid.shape
+    nodata_grid = None
+    if not np.isfinite(heightmap).all():
+        m = Image.fromarray((~np.isfinite(heightmap)).astype(np.uint8) * 255)
+        nodata_grid = np.asarray(m.resize((gc, gr), Image.Resampling.BOX)) > 127
+    width_m, depth_m = cols_px * gsd_m, rows_px * gsd_m
+    if height_offset is None:
+        height_offset = float(np.nanpercentile(heightmap, 1))
+    if nodata_grid is not None:
+        grid = np.where(nodata_grid, height_offset, grid)
+
+    u = np.linspace(0.0, 1.0, gc, dtype=np.float32)
+    v = np.linspace(0.0, 1.0, gr, dtype=np.float32)
+    uu, vv = np.meshgrid(u, v)
+    x = (uu - 0.5) * width_m
+    z = (vv - 0.5) * depth_m
+    y = grid - height_offset
+    vertices = np.column_stack([x.ravel(), y.ravel(), z.ravel()]).astype(np.float32)
+    # trimesh uses OpenGL UV convention (v=0 at the bottom) and flips on glTF export.
+    uv = np.column_stack([uu.ravel(), 1.0 - vv.ravel()]).astype(np.float32)
+
+    r, c = np.meshgrid(np.arange(gr - 1), np.arange(gc - 1), indexing="ij")
+    v00 = (r * gc + c).ravel()
+    v10 = ((r + 1) * gc + c).ravel()
+    v01 = (r * gc + c + 1).ravel()
+    v11 = ((r + 1) * gc + c + 1).ravel()
+    faces = np.vstack([np.column_stack([v00, v10, v01]), np.column_stack([v10, v11, v01])]).astype(np.int64)
+    if nodata_grid is not None and nodata_grid.any():
+        # Drop triangles touching nodata so image borders don't render as flat skirts.
+        bad = nodata_grid.ravel()
+        faces = faces[~(bad[faces[:, 0]] | bad[faces[:, 1]] | bad[faces[:, 2]])]
+
+    tex = Image.open(texture_path)  # opened from JPEG → trimesh embeds it without re-encoding
+    material = trimesh.visual.material.PBRMaterial(
+        name="optical", baseColorTexture=tex, metallicFactor=0.0, roughnessFactor=1.0, doubleSided=True,
+    )
+    visual = trimesh.visual.TextureVisuals(uv=uv, material=material)
+    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, visual=visual, process=False)
+    info = {"grid_shape": (gr, gc), "width_m": width_m, "depth_m": depth_m, "height_offset": height_offset}
+    logger.info("Mesh: %dx%d grid, %d vertices, %d faces, %.0f × %.0f m",
+                gr, gc, len(vertices), len(faces), width_m, depth_m)
+    return mesh, info
+
+
+def export_glb(mesh: trimesh.Trimesh, path: str | Path, extras: dict | None = None) -> Path:
+    path = Path(path).with_suffix(".glb")
+    scene = trimesh.Scene()
+    scene.add_geometry(mesh, node_name="terrain", geom_name="terrain")
+    if extras:
+        scene.metadata.update(extras)
+    scene.export(str(path), file_type="glb")
+    logger.info("GLB written: %s (%.1f MB)", path, path.stat().st_size / 1e6)
     return path

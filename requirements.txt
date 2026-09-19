@@ -1,43 +1,41 @@
-# DepthWizard / Heimdall
-# Core dependencies — platform-agnostic.
-# See INSTALL_PYTORCH.md for platform-specific PyTorch install instructions.
+# Heimdall / DepthWizard — Python dependencies
+# Install PyTorch first for your platform (see INSTALL_PYTORCH.md), then:
+#   pip install -r requirements.txt
 
 # ---------- Core ML ----------
+torch>=2.1
+torchvision>=0.16
 numpy>=1.24
 scipy>=1.10
 scikit-learn>=1.3
-Pillow>=9.5
+Pillow>=10.0
 h5py>=3.8
 
-# ---------- Depth Anything V2 ----------
+# ---------- Depth Anything V2 (HF) + SegFormer ----------
 transformers>=4.44,<4.46
 safetensors>=0.4
 timm>=0.9
 
-# ---------- Depth Anything V3 (native) ----------
+# ---------- Depth Anything V3 (bundled in depth_anything_3/) ----------
 einops>=0.7
 omegaconf>=2.3
 huggingface_hub
-e3nn>=0.5
 addict
 imageio
+opencv-python-headless>=4.8
+e3nn>=0.5
 
 # ---------- Geospatial ----------
 rasterio>=1.3
-shapely>=2.0
 
-# ---------- CLI / config ----------
-tqdm>=4.65
-
-# ---------- Mesh generation ----------
+# ---------- Mesh / outputs ----------
 trimesh>=4.0
-open3d>=0.17; sys_platform != 'darwin' or platform_machine != 'arm64'
-# Note: open3d may have issues on Apple Silicon — fallback is trimesh-only pipeline.
-
-# ---------- Evaluation ----------
-pandas>=2.0
-tabulate>=0.9
-
-# ---------- Optional: visualization / debugging ----------
+scikit-image>=0.22
 matplotlib>=3.7
+
+# ---------- GSD heuristic for non-georeferenced imagery ----------
 ultralytics>=8.0.0
+
+# ---------- CLI / evaluation ----------
+tqdm>=4.65
+pytest>=7.4

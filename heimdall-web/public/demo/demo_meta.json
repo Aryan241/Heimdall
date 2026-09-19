@@ -1,0 +1,166 @@
+{
+  "version": 2,
+  "input": "uploaded_image_1789657102996.tif",
+  "kind": "georeferenced",
+  "product": "absolute_dsm",
+  "product_description": "Absolute DSM (metres, orthometric; terrain datum + predicted above-ground height)",
+  "units": "m",
+  "mode": "head",
+  "model": "da3-metric-l",
+  "weights": "decoder_best_all.pth",
+  "native_shape": [
+    8154,
+    7649
+  ],
+  "working_shape": [
+    618,
+    580
+  ],
+  "gsd": {
+    "source": "geotransform",
+    "native_m": 0.01251,
+    "working_m": 0.33,
+    "output_m": 0.165
+  },
+  "crs_epsg": 32645,
+  "crs_wkt": "PROJCS[\"WGS 84 / UTM zone 45N\",GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4326\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",87],PARAMETER[\"scale_factor\",0.9996],PARAMETER[\"false_easting\",500000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"32645\"]]",
+  "working_transform": [
+    0.1649810172413793,
+    0.0,
+    334371.72523000004,
+    0.0,
+    -0.16505912621359223,
+    3062984.0355900005
+  ],
+  "center_latlon": [
+    27.680457336226176,
+    85.32101077651191
+  ],
+  "bounds": [
+    334371.72523000004,
+    3062882.0290500005,
+    334467.41422000004,
+    3062984.0355900005
+  ],
+  "calibration": {
+    "refinement": {
+      "method": "segment-wise planar regularisation",
+      "segments": 272,
+      "built_surfaces": 114,
+      "pitched": 24,
+      "vegetation_objects": 13,
+      "bimodal_splits": 32,
+      "merged_pairs": 45,
+      "vehicles": 5,
+      "segments_grounded_by_vehicles": 2
+    },
+    "method": "DTM + nDSM",
+    "terrain_source": "Copernicus GLO-30 (auto)",
+    "coverage": 1.0,
+    "coarse_shape": [
+      6,
+      6
+    ],
+    "coarse_min": 1306.8138427734375,
+    "coarse_max": 1309.231201171875,
+    "opening_cells": 3
+  },
+  "stats": {
+    "surface": {
+      "min": 1307.5343017578125,
+      "max": 1317.17529296875,
+      "mean": 1309.6402587890625,
+      "std": 1.5804551839828491,
+      "p02": 1307.84326171875,
+      "p50": 1309.04296875,
+      "p98": 1313.6436767578125
+    },
+    "ndsm": {
+      "min": 0.0,
+      "max": 9.388132095336914,
+      "mean": 1.2520395517349243,
+      "std": 1.5563889741897583,
+      "p02": 0.0,
+      "p50": 0.6570113897323608,
+      "p98": 5.161219596862793
+    },
+    "dtm": {
+      "min": 1307.304931640625,
+      "max": 1308.08984375,
+      "mean": 1307.792724609375,
+      "std": 0.19115668535232544,
+      "p02": 1307.4622802734375,
+      "p50": 1307.7928466796875,
+      "p98": 1308.08056640625
+    },
+    "built_fraction": 0.18773295391139383
+  },
+  "height_png_scale": {
+    "offset_m": 1307.5343017578125,
+    "scale_m": 0.00014711209599355306
+  },
+  "mesh": {
+    "grid_shape": [
+      618,
+      580
+    ],
+    "width_m": 95.7,
+    "depth_m": 101.97,
+    "height_offset": 1307.771240234375,
+    "grid_layers": [
+      "surface",
+      "ndsm",
+      "dtm",
+      "slope_deg"
+    ],
+    "z_scale": 1.0,
+    "vertices": 358440,
+    "faces": 490675
+  },
+  "files": {
+    "dsm": "demo_dsm.tif",
+    "ndsm": "demo_ndsm.tif",
+    "dtm": "demo_dtm.tif",
+    "height_png": "demo_height16.png",
+    "preview": "demo_preview.png",
+    "texture": "demo_texture.jpg",
+    "mesh": "demo_mesh.glb",
+    "grid": "demo_grid.bin",
+    "meta": "demo_meta.json"
+  },
+  "warnings": [],
+  "timings_s": {
+    "ingest": 0.61,
+    "depth": 14.14,
+    "calibration": 0.1,
+    "outputs": 1.53,
+    "mesh": 0.98,
+    "total": 17.86
+  },
+  "config": {
+    "input": "uploaded_image_1789657102996.tif",
+    "output_dir": "demo",
+    "name": "demo",
+    "weights": "decoder_best_all.pth",
+    "model_key": null,
+    "device": null,
+    "reference_dem": null,
+    "auto_dem": true,
+    "gcps": null,
+    "gsd": null,
+    "target_gsd": null,
+    "max_side": 8192,
+    "tile_size": 512,
+    "overlap": 128,
+    "tta": true,
+    "refine": true,
+    "band_order": null,
+    "export_mesh": true,
+    "mesh_grid": 640,
+    "texture_side": 4096,
+    "max_height": null,
+    "use_segmentation": false,
+    "dtm_opening_cells": 3,
+    "events": false
+  }
+}
