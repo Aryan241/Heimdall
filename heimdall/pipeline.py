@@ -96,8 +96,8 @@ def _stats(a: np.ndarray) -> dict:
 def run(cfg: PipelineConfig) -> PipelineResult:
     import torch  # noqa: F401  (deferred heavy import)
     from heimdall.device import get_device
-    from heimdall.geo import (TRAINING_GSD_M, center_latlon, gsd_from_geo, resize_image, resize_mask,
-                              scaled_transform, working_shape)
+    from heimdall.geo import (TRAINING_GSD_M, center_latlon, gsd_from_geo, is_rotated, resize_image,
+                              resize_mask, scaled_transform, working_shape)
     from heimdall.ingestion.loader import ingest
     from heimdall.output import writers
 
@@ -138,6 +138,10 @@ def run(cfg: PipelineConfig) -> PipelineResult:
         native_gsd, gsd_info = float(cfg.gsd), {"source": "user"}
     elif georef:
         native_gsd, gsd_info = gsd_from_geo(geo, native_shape), {"source": "geotransform"}
+        if is_rotated(geo.transform):
+            warn("The raster has a rotated geotransform (not north-up). Elevation products stay "
+                 "correctly georeferenced, but mesh axes and the viewer's lat/lon readout assume "
+                 "north-up and are approximate.")
     else:
         from heimdall.calibration.heuristic import estimate_gsd
         native_gsd, gsd_info = estimate_gsd(payload.image)
@@ -169,6 +173,11 @@ def run(cfg: PipelineConfig) -> PipelineResult:
         say("stage", stage="depth", message="Loading Depth Anything V3 + Heimdall head")
         wrapper = load_wrapper(cfg.weights, device, model_key=model_key)
         model_key = wrapper.model_key
+        if model_key.startswith("da3"):
+            warn("This decoder head was trained on a Depth Anything V3 metric backbone, which is nearly "
+                 "blind to height in nadir imagery (LiDAR benchmark: r≈0.06, RMSE 7.4 m vs 8.4 m for "
+                 "predicting zero). Heights here are unreliable — retrain on a V2 backbone "
+                 "(docs/KAGGLE_TRAINING.md).")
         say("stage", stage="depth", message="Estimating height above ground")
         ndsm = predict_ndsm(wrapper, image, device, tile_size=cfg.tile_size, overlap=cfg.overlap, tta=cfg.tta,
                             progress=lambda i, n: say("progress", stage="depth", current=i, total=n))

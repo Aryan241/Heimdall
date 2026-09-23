@@ -19,7 +19,7 @@ Every run also writes an nDSM (height above ground), the terrain datum, a 16-bit
 image ─► ingest (bands, 16-bit stretch, nodata, CRS)
       ─► GSD (geotransform │ --gsd │ vehicle-size heuristic)
       ─► resample to 0.33 m/px (the training GSD of the decoder head)
-      ─► Depth Anything V3 Metric-Large (frozen) + trained ASPP head, 512² tiles, feathered blending
+      ─► Depth Anything V2 (frozen) + trained ASPP head, 512² tiles, feathered blending
             → nDSM: height above ground (m)
       ─► object-based regularisation: colour segments → flat / pitched roofs, vertical walls;
             detected vehicles mark ground (parking lots stay flat)            (--no-refine to skip)
@@ -29,7 +29,7 @@ image ─► ingest (bands, 16-bit stretch, nodata, CRS)
       ─► GeoTIFF / PNG / preview / textured GLB / height grid / metadata
 ```
 
-* **Backbone**: Depth Anything V3 Metric-Large, frozen (`depth_anything_3/`, weights from Hugging Face).
+* **Backbone**: Depth Anything V2 Base, frozen (Hugging Face). Chosen by measured correlation with LiDAR height: 0.41 vs 0.06 for the V3 metric model, which is nearly blind to height in nadir views. V3 is bundled and still selectable with `--model da3-metric-l`.
 * **Head**: ASPP regression head (dilations 1/6/12/18) predicting per-pixel scale and shift of the backbone depth → metric height above ground. Trained on **GAMUS** (0.33 m RGB + nDSM) with SILog + multi-scale gradient-matching + L1 loss (`scripts/train_decoder.py`). Checkpoint: `checkpoints/decoder/decoder_best_all.pth`.
 * **Why resample to 0.33 m**: the head learned heights at the GAMUS ground sample distance; running it at another GSD changes the apparent size of every object. Up-sampling is capped at 3× for coarse imagery.
 * **Absolute scale**: the coarse DEM is reprojected onto the image grid (any CRS), filtered with a morphological opening to suppress buildings/canopy that leak into 30 m radar DEMs, and smoothly up-sampled. GCPs (CSV) remove the residual offset or tilt.
@@ -93,7 +93,15 @@ Outputs (`<name>_*`): `dsm.tif` / `rdsm.tif`, `ndsm.tif`, `dtm.tif`, `height16.p
 
 ## Validation and benchmarking
 
+> **Current accuracy status.** Benchmarked against AHN LiDAR over 8 Dutch landscapes, the
+> *shipped* head scores 7.44 m mean nDSM RMSE versus 8.37 m for predicting zero — it was
+> trained on a backbone that cannot see height in nadir imagery. Retraining on Depth
+> Anything V2 is required: see [docs/KAGGLE_TRAINING.md](docs/KAGGLE_TRAINING.md).
+
 ```bash
+# Independent benchmark against airborne LiDAR (open Dutch data, downloads automatically)
+python scripts/benchmark_ahn.py --out outputs/benchmark_ahn        # --gsd 0.5 1.0 to simulate satellites
+
 # A result against a reference DSM / LiDAR raster (any CRS; reprojected automatically)
 python validate.py --meta outputs/scene_meta.json --reference lidar_dsm.tif
 
@@ -132,13 +140,13 @@ heimdall/               pipeline package
   mesh/ output/ eval/   textured GLB, writers, metrics + DSM comparison
 depth_anything_3/       bundled Depth Anything V3 code
 infer.py validate.py eval.py
-scripts/                training, model prefetch
+scripts/                training, dataset building, backbone caching, LiDAR benchmark
 heimdall-web/           Next.js + React Three Fiber web app (see heimdall-web/README.md)
 tests/                  unit tests
 ```
 
 ## Known limitations
 
-* The head predicts height above ground learned from GAMUS (US/European cities, 0.33 m). Accuracy on other sensors, regions and GSDs should be measured with `eval.py` / `validate.py` before quoting numbers.
+* The shipped head is **not accurate yet** (see the benchmark note above); retrain per `docs/KAGGLE_TRAINING.md`. Always measure with `scripts/benchmark_ahn.py` / `eval.py` / `validate.py` before quoting numbers.
 * Absolute accuracy of the terrain datum is bounded by the coarse DEM (Copernicus GLO-30 is EGM2008-referenced; reference LiDAR is often ellipsoidal, which is why the validator reports an offset-removed score).
 * Automatic DEM download needs internet access; offline, supply `--reference-dem` or GCPs.

@@ -20,9 +20,20 @@ logger = logging.getLogger(__name__)
 TRAINING_GSD_M = 0.33
 
 
+def is_rotated(transform: tuple, tol: float = 1e-9) -> bool:
+    """True if the geotransform has rotation/shear terms (the raster is not north-up)."""
+    return abs(transform[1]) > tol or abs(transform[3]) > tol
+
+
+def pixel_size(transform: tuple) -> tuple[float, float]:
+    """Pixel size along each raster axis, in CRS units (correct for rotated grids too)."""
+    a, b, _, d, e, _ = transform[:6]
+    return math.hypot(a, d), math.hypot(b, e)
+
+
 def gsd_from_geo(geo: GeoInfo, shape: tuple[int, int]) -> float:
     """Return mean ground sample distance in metres per pixel for a georeferenced raster."""
-    res_x, res_y = abs(geo.resolution[0]), abs(geo.resolution[1])
+    res_x, res_y = pixel_size(geo.transform)
     if not geo.is_geographic:
         # Projected CRS. Assume metre units (true for UTM and virtually all EO products);
         # rasterio exposes linear units but many files omit them.
