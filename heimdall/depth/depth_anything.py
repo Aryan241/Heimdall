@@ -34,6 +34,9 @@ MODEL_REGISTRY: dict[str, str] = {
     "vit-l": "depth-anything/Depth-Anything-V2-Large-hf",
     "da3-metric-l": "depth-anything/DA3METRIC-LARGE",
     "da3-mono-l": "depth-anything/DA3MONO-LARGE",
+    "da3-b": "depth-anything/DA3-BASE",
+    "da3-l": "depth-anything/DA3-LARGE",
+    "da3-l-11": "depth-anything/DA3-LARGE-1.1",
 }
 
 

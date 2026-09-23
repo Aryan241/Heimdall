@@ -4,10 +4,17 @@
 Measured against airborne LiDAR (`scripts/benchmark_ahn.py`, 8 Dutch sites, none used for
 training), that backbone is nearly blind to height in straight-down imagery:
 
-| Backbone | Mean correlation with LiDAR height |
-|---|---|
-| DA3 Metric-Large (old default) | **0.06** |
-| DA2 Small / Base / Large | 0.35 / **0.41** / 0.41 |
+| Backbone | Type | Mean r | Median r |
+|---|---|---|---|
+| DA3 Metric-Large (old default) | metric | **0.06** | — |
+| DA3-Large | multi-view | 0.23 | 0.29 |
+| DA3 Mono-Large | relative | 0.40 | **0.58** |
+| DA2 Base (**new default**) | relative | **0.41** | 0.56 |
+
+This is a *relative vs metric* split, not V2 vs V3: metric models assume a perspective camera
+with a focal length, which an orthomosaic has not got. DA2 Base and DA3 Mono tie on accuracy;
+DA2 Base is ~3× faster, so it is the default. To train against DA3 Mono instead, pass
+`--model da3-mono-l` to both `cache_backbone.py` and `train_decoder.py`.
 
 With no height signal to work from, the head could only guess from colour and texture:
 overall nDSM RMSE **7.44 m** versus **8.37 m** for predicting zero everywhere. The fix is to

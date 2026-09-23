@@ -52,7 +52,7 @@ Modules: `heimdall/pipeline.py` orchestrates everything and is shared by the CLI
 The head learned *metric* heights from GAMUS imagery at 0.33 m/px. A monocular model infers height partly from apparent object size, so feeding it 0.01 m drone imagery or 1 m satellite imagery at native resolution changes what "a building" looks like. Heimdall therefore resamples every georeferenced image (and any image with a known GSD) to 0.33 m before inference, then writes the DSM on that working grid with a consistent geotransform.
 
 ### 2.2 Height model
-* **Backbone**: Depth Anything V2 Base (~98 M parameters, frozen), selected by measured correlation with LiDAR height (§4.4). V2 returns relative *disparity* (larger = closer = taller). V3 remains selectable (`--model da3-metric-l`); its output is sign-corrected, as it returns depth.
+* **Backbone**: Depth Anything V2 Base (~98 M parameters, frozen), selected by measured correlation with LiDAR height (§4.4). It returns relative *disparity* (larger = closer = taller). Depth Anything V3's *monocular* model scores the same and is selectable (`--model da3-mono-l`, needs a head trained for it); V3's *metric* model is unusable for nadir imagery (§4.4).
 * **Head** (`heimdall/decoder/head.py`): RGB + backbone depth → conv stem → ASPP (dilations 1/6/12/18 + global pooling) → two maps, a scale `S(x,y)` and a shift `T(x,y)`:
 
   `nDSM(x, y) = ReLU( S(x, y) · D(x, y) + T(x, y) )`
@@ -158,20 +158,34 @@ with the **shipped (GAMUS / DA3-metric) head**, 400 m sites, 0.25 m imagery:
 regularisation changes the metrics by < 0.01 m — it improves appearance, not accuracy.
 
 **Root cause (measured).** Correlation between each frozen backbone's output and LiDAR
-height, same eight sites:
+height, same eight sites, 0.33 m tiles:
 
-| Backbone | Mean r | s/tile (MPS) |
-|---|---|---|
-| DA3 Metric-Large (shipped head's backbone) | 0.06 | 26 |
-| DA2 Small | 0.35 | 1.5 |
-| **DA2 Base** | **0.41** | 2.2 |
-| DA2 Large | 0.41 | 6.6 |
+| Backbone | Type | Mean r | Median r | s/tile (MPS) |
+|---|---|---|---|---|
+| DA2 Small | relative | 0.35 | — | 1.5 |
+| **DA2 Base (default)** | relative | **0.41** | **0.56** | **1.6** |
+| DA2 Large | relative | 0.41 | — | 6.6 |
+| DA3 Mono-Large | relative | 0.40 | 0.58 | 4.6 |
+| DA3-Large | general / multi-view | 0.23 | 0.29 | 6.1 |
+| DA3 Metric-Large (shipped head's backbone) | metric | 0.06 | — | 26 |
 
-Depth Anything V3's metric branch is trained for ground-level cameras; on a nadir view it
-returns an almost constant depth plane, so the head had no geometric signal and could only
-infer height from colour and texture. The pipeline default is therefore Depth Anything V2
-(`vit-b`), and the head must be retrained on it — see `docs/KAGGLE_TRAINING.md`. The
-benchmark is re-run after training to quantify the improvement.
+The split is **relative vs metric**, not V2 vs V3. Metric models regress absolute distance
+and therefore assume a pinhole camera with a known focal length (`apply_metric_scaling` in
+`depth_anything_3/utils/alignment.py`); an orthorectified mosaic has no single camera and no
+perspective, so the metric branch degenerates to a near-constant plane (measured output range
+0.6–0.7 m across a whole city tile). Relative models only have to rank near vs far, which in a
+nadir view is exactly "taller vs shorter"; the metres then come from the trained head and the
+DEM datum. DA3-Large is built for multi-view input and gets only a single tile here.
+
+DA2 Base and DA3 Mono are statistically indistinguishable on this test, so the default is DA2
+Base for being ~3× faster. DA3 Mono is selectable (`--model da3-mono-l`) but needs a head
+trained against it — the head is fitted to one backbone's output distribution. Two sites
+(flat farmland, water-dominated port) have almost no above-ground structure, so their
+correlations are noise; the median column is the more meaningful summary.
+
+The pipeline default is therefore Depth Anything V2 Base, and the head must be retrained on
+it — see `docs/KAGGLE_TRAINING.md`. The benchmark is re-run after training to quantify the
+improvement.
 
 ### 4.5 Qualitative end-to-end run (bundled demo)
 Georeferenced drone orthomosaic, Kathmandu (EPSG:32645, 1.25 cm GSD, 7649 × 8154 px):

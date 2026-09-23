@@ -17,13 +17,15 @@ sys.path.insert(0, str(REPO))
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--all", action="store_true", help="Also fetch optional models (DA2, SegFormer).")
+    ap.add_argument("--all", action="store_true", help="Also fetch optional backbones (DA2-Large, DA3-Mono) and SegFormer.")
     args = ap.parse_args()
     from huggingface_hub import snapshot_download
 
-    repos = ["depth-anything/DA3METRIC-LARGE"]
+    repos = ["depth-anything/Depth-Anything-V2-Base-hf"]          # pipeline default backbone
     if args.all:
-        repos += ["depth-anything/Depth-Anything-V2-Base-hf", "nvidia/segformer-b0-finetuned-ade-512-512"]
+        repos += ["depth-anything/Depth-Anything-V2-Large-hf",     # higher-capacity alternative
+                  "depth-anything/DA3MONO-LARGE",                  # V3 monocular: same accuracy, slower
+                  "nvidia/segformer-b0-finetuned-ade-512-512"]     # ground mask (backbone-only mode)
     for r in repos:
         print(f"→ {r}")
         snapshot_download(r)
