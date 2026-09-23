@@ -20,6 +20,10 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
+
+class UnreadableImageError(ValueError):
+    """The input exists but is not a readable image (wrong format, truncated, unsupported codec)."""
+
 # Large scenes are legitimate input — don't let PIL treat them as decompression bombs.
 Image.MAX_IMAGE_PIXELS = None
 
@@ -182,4 +186,9 @@ def ingest(path: str | Path, band_order: Sequence[int] | None = None) -> ImagePa
     payload = _try_load_geotiff(path, band_order)
     if payload is not None:
         return payload
-    return _load_plain_image(path, band_order)
+    try:
+        return _load_plain_image(path, band_order)
+    except Exception as exc:
+        raise UnreadableImageError(
+            f"'{path.name}' could not be read as an image. Supported inputs: GeoTIFF, TIFF, PNG, JPEG, BMP."
+        ) from exc

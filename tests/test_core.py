@@ -166,3 +166,11 @@ def test_refinement_flattens_noisy_roof_and_sharpens_walls():
     assert abs(float(np.median(roof)) - 6.0) < 0.5    # at the right height
     assert out[60, 29] < 1.0 and out[60, 31] > 5.0    # vertical wall at the true edge
     assert np.abs(out - truth).mean() < np.abs(pred - truth).mean()
+
+
+def test_unreadable_input_raises_friendly_error(tmp_path):
+    from heimdall.ingestion.loader import UnreadableImageError
+    bad = tmp_path / "notes.txt"
+    bad.write_text("this is not an image")
+    with pytest.raises(UnreadableImageError, match="could not be read as an image"):
+        ingest(bad)
