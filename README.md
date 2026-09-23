@@ -29,7 +29,7 @@ image ─► ingest (bands, 16-bit stretch, nodata, CRS)
       ─► GeoTIFF / PNG / preview / textured GLB / height grid / metadata
 ```
 
-* **Backbone**: Depth Anything V2 Base, frozen (Hugging Face). Chosen by measured correlation with LiDAR height: 0.41 vs 0.06 for the V3 metric model, which is nearly blind to height in nadir views. V3 is bundled and still selectable with `--model da3-metric-l`.
+* **Backbone**: Depth Anything V2 Base, frozen (Hugging Face), chosen by measured correlation with LiDAR height (median r 0.56 at 1.6 s/tile). Depth Anything V3's *monocular* model matches it (0.58) but is ~3× slower; V3's *metric* model scores 0.06 because metric depth assumes a perspective camera that an orthomosaic doesn't have. Selectable: `--model vit-s|vit-b|vit-l|da3-mono-l|da3-l|da3-metric-l` (a head is fitted to one backbone, so switching needs retraining).
 * **Head**: ASPP regression head (dilations 1/6/12/18) predicting per-pixel scale and shift of the backbone depth → metric height above ground. Trained on **GAMUS** (0.33 m RGB + nDSM) with SILog + multi-scale gradient-matching + L1 loss (`scripts/train_decoder.py`). Checkpoint: `checkpoints/decoder/decoder_best_all.pth`.
 * **Why resample to 0.33 m**: the head learned heights at the GAMUS ground sample distance; running it at another GSD changes the apparent size of every object. Up-sampling is capped at 3× for coarse imagery.
 * **Absolute scale**: the coarse DEM is reprojected onto the image grid (any CRS), filtered with a morphological opening to suppress buildings/canopy that leak into 30 m radar DEMs, and smoothly up-sampled. GCPs (CSV) remove the residual offset or tilt.
