@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -99,9 +100,17 @@ def main() -> int:
     try:
         result = run(cfg)
     except Exception as exc:
+        from heimdall.ingestion.loader import UnreadableImageError
         logging.getLogger("heimdall").exception("Pipeline failed")
+        if isinstance(exc, (UnreadableImageError, FileNotFoundError, MemoryError)):
+            message = str(exc) if not isinstance(exc, MemoryError) else (
+                "Ran out of memory. Try a smaller --max-side (e.g. 4096) or a machine with more RAM.")
+        else:
+            # Don't leak server paths to API clients; the full traceback is in the log.
+            message = f"{type(exc).__name__}: {exc}"
+            message = re.sub(r"(/[\w.\-]+)+/([\w.\-]+)", r"\2", message)
         if cfg.events:
-            emit("error", message=f"{type(exc).__name__}: {exc}")
+            emit("error", message=message)
         return 1
 
     s = result.meta["stats"]["surface"]
