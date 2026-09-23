@@ -56,6 +56,20 @@ function Terrain({
     mat.roughness = 1;
     mat.metalness = 0;
     if (mat.map) mat.map.anisotropy = 8;
+    // Nadir imagery has no façades: on near-vertical faces the texture is smeared, so blend it
+    // towards a neutral wall tone by how vertical the face is.
+    mat.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vWorldNormalH;')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vWorldNormalH = normalize(mat3(modelMatrix) * objectNormal);');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vWorldNormalH;')
+        .replace('#include <map_fragment>', `#include <map_fragment>
+          float wallness = smoothstep(0.55, 0.18, abs(vWorldNormalH.y));
+          vec3 wallTone = vec3(dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114))) * 0.82;
+          diffuseColor.rgb = mix(diffuseColor.rgb, wallTone, wallness * 0.85);`);
+    };
+    mat.needsUpdate = true;
     return { geometry: geo, texMaterial: mat };
   }, [gltf]);
 
@@ -214,6 +228,24 @@ function FlyControls({ active, grid, exaggeration }: { active: boolean; grid: Te
   return null;
 }
 
+/* ─── Screen pixels per ground metre, for the scale bar ───────────────── */
+function ScaleProbe({ onChange }: { onChange: (v: number) => void }) {
+  const last = useRef(0);
+  useFrame((state) => {
+    const cam = state.camera as THREE.PerspectiveCamera;
+    if (!cam.isPerspectiveCamera) return;
+    // Metres per pixel at the distance of the scene centre, then invert.
+    const dist = cam.position.length();
+    const worldPerPx = (2 * Math.tan((cam.fov * Math.PI) / 360) * dist) / state.size.height;
+    const v = 1 / Math.max(worldPerPx, 1e-9);
+    if (Math.abs(v - last.current) / Math.max(v, 1e-9) > 0.02) {
+      last.current = v;
+      onChange(v);
+    }
+  });
+  return null;
+}
+
 /* ─── Screenshot helper ───────────────────────────────────────────────── */
 function Capture({ onReady }: { onReady: (fn: () => string) => void }) {
   const { gl, scene, camera } = useThree();
@@ -304,6 +336,18 @@ export default function TerrainViewer({ scene, grid }: { scene: Scene; grid: Ter
           hi: fmt(grid?.stats.surface?.p98, 1),
           title: `Elevation (${units})`,
         };
+  // Scale bar: a "nice" round distance and how wide it is on screen at the current camera.
+  const [pxPerMetre, setPxPerMetre] = useState(0);
+  const scaleBar = useMemo(() => {
+    if (!pxPerMetre || !Number.isFinite(pxPerMetre)) return null;
+    const target = 140 / pxPerMetre; // aim for ~140 px
+    const pow = Math.pow(10, Math.floor(Math.log10(Math.max(target, 1e-6))));
+    const nice = [1, 2, 5, 10].map((m) => m * pow).find((v) => v >= target * 0.6) ?? pow * 10;
+    const px = nice * pxPerMetre;
+    if (!Number.isFinite(px) || px < 20 || px > 420) return null;
+    return { px, label: nice >= 1000 ? `${nice / 1000} km` : `${nice} m` };
+  }, [pxPerMetre]);
+
   const crs = hover && grid ? localToCrs(meta, grid, hover.x, hover.z) : null;
   const ll = hover && grid ? localToLatLon(meta, grid, hover.x, hover.z) : null;
 
@@ -407,6 +451,24 @@ export default function TerrainViewer({ scene, grid }: { scene: Scene; grid: Ter
         </div>
       )}
 
+      {grid && (
+        <div className="viewer-compass" aria-label="North indicator">
+          <svg width="46" height="46" viewBox="0 0 46 46">
+            <circle cx="23" cy="23" r="20" fill="rgba(8,11,17,0.75)" stroke="rgba(255,255,255,0.15)" />
+            <polygon points="23,7 28,25 23,21 18,25" fill="#f87171" />
+            <polygon points="23,39 18,21 23,25 28,21" fill="#cbd5e1" />
+            <text x="23" y="6" fontSize="7" fill="#cbd5e1" textAnchor="middle">N</text>
+          </svg>
+        </div>
+      )}
+
+      {grid && scaleBar && (
+        <div className="viewer-scalebar" aria-label="Scale bar">
+          <div className="scalebar-line" style={{ width: `${scaleBar.px}px` }} />
+          <span>{scaleBar.label}</span>
+        </div>
+      )}
+
       {legend && (
         <div className="viewer-legend">
           <div className="legend-title">{legend.title}</div>
@@ -447,6 +509,7 @@ export default function TerrainViewer({ scene, grid }: { scene: Scene; grid: Ter
             enableDamping dampingFactor={0.08} maxPolarAngle={Math.PI * 0.495} minDistance={D / 200} maxDistance={D * 8} />
         )}
         {grid && <FlyControls active={mode === 'fly'} grid={grid} exaggeration={exaggeration} />}
+        <ScaleProbe onChange={setPxPerMetre} />
         <Capture onReady={(fn) => { snap.current = fn; }} />
       </Canvas>
     </div>
