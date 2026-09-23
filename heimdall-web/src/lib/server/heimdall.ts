@@ -133,6 +133,33 @@ export function runPython(
   return { child, done };
 }
 
+/** Limits (override with env vars). */
+export const MAX_UPLOAD_BYTES = Number(process.env.HEIMDALL_MAX_UPLOAD_MB ?? 512) * 1024 * 1024;
+export const MAX_CONCURRENT_JOBS = Number(process.env.HEIMDALL_MAX_JOBS ?? 2);
+export const JOB_TIMEOUT_MS = Number(process.env.HEIMDALL_JOB_TIMEOUT_S ?? 1800) * 1000;
+export const KEEP_JOBS = Number(process.env.HEIMDALL_KEEP_JOBS ?? 50);
+
+let running = 0;
+export function acquireSlot(): boolean {
+  if (running >= MAX_CONCURRENT_JOBS) return false;
+  running += 1;
+  return true;
+}
+export function releaseSlot() {
+  running = Math.max(0, running - 1);
+}
+
+/** Delete all but the newest KEEP_JOBS job directories (best effort). */
+export async function pruneJobs() {
+  try {
+    const { rm } = await import('fs/promises');
+    const jobs = await listJobs(1000);
+    for (const j of jobs.slice(KEEP_JOBS)) {
+      await rm(jobPath(j.id), { recursive: true, force: true });
+    }
+  } catch {}
+}
+
 export const CONTENT_TYPES: Record<string, string> = {
   '.glb': 'model/gltf-binary',
   '.tif': 'image/tiff',

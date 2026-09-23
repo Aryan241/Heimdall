@@ -27,21 +27,27 @@ if repo_root not in sys.path:
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import ConcatDataset, DataLoader, Subset
 from tqdm import tqdm
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Train the Heimdall decoder head")
-    ap.add_argument("--dataset-dir", "--dataset_dir", "--data-dir", "--data_dir", dest="dataset_dir", type=Path, required=True)
+    ap.add_argument("--dataset-dir", "--dataset_dir", "--data-dir", "--data_dir", dest="dataset_dir", type=Path,
+                    nargs="+", required=True, help="One or more dataset roots (e.g. GAMUS and AHN together).")
     ap.add_argument("--strata", type=str, default=None, help="Optional tile-id filter (e.g. a city code).")
+    ap.add_argument("--tag", default=None, help="Checkpoint name suffix (default: strata or 'all').")
     ap.add_argument("--gpu", type=int, default=None)
     ap.add_argument("--epochs", type=int, default=10)
     ap.add_argument("--batch-size", "--batch_size", dest="batch_size", type=int, default=4)
     ap.add_argument("--accumulate", type=int, default=4, help="Gradient accumulation steps.")
     ap.add_argument("--lr", type=float, default=1e-4)
-    ap.add_argument("--model", type=str, default="da3-metric-l",
+    ap.add_argument("--model", type=str, default="vit-b",
                     choices=["vit-s", "vit-b", "vit-l", "da3-metric-l", "da3-mono-l"])
+    ap.add_argument("--cache-root", type=Path, default=None,
+                    help="Where cache_backbone.py wrote its caches (for read-only dataset mounts).")
+    ap.add_argument("--backbone-cache", action="store_true",
+                    help="Use pre-computed backbone outputs from scripts/cache_backbone.py (much faster).")
     ap.add_argument("--output-dir", "--output_dir", dest="output_dir", type=Path, default=Path("checkpoints/decoder"))
     ap.add_argument("--patch-size", "--patch_size", dest="patch_size", type=int, default=512)
     ap.add_argument("--num-workers", "--num_workers", dest="num_workers", type=int, default=2)
@@ -63,14 +69,23 @@ def main() -> int:
     use_amp = supports_amp(device)
     log.info("Device: %s  AMP: %s", device, use_amp)
 
-    train_ds = RemoteSensingHeightDataset(args.dataset_dir, split="train", strata=args.strata,
-                                          patch_size=args.patch_size, augment=not args.no_augment)
+    cache = args.model if args.backbone_cache else None
+
+    def build(split: str, augment: bool):
+        parts = [RemoteSensingHeightDataset(d, split=split, strata=args.strata, patch_size=args.patch_size,
+                                            augment=augment, backbone_cache=cache, cache_root=args.cache_root)
+                 for d in args.dataset_dir]
+        parts = [p for p in parts if len(p)]
+        for d, p in zip(args.dataset_dir, parts):
+            log.info("  %s/%s: %d tiles", d, split, len(p))
+        return ConcatDataset(parts) if len(parts) > 1 else (parts[0] if parts else [])
+
+    train_ds = build("train", not args.no_augment)
     if len(train_ds) == 0:
         log.error("Training set is empty — expected images/ and heights/ (with train/ val/ splits) under %s",
                   args.dataset_dir)
         return 1
-    val_ds = RemoteSensingHeightDataset(args.dataset_dir, split=args.val_split, strata=args.strata,
-                                        patch_size=args.patch_size)
+    val_ds = build(args.val_split, False)
     if len(val_ds) > args.val_max:
         val_ds = Subset(val_ds, np.linspace(0, len(val_ds) - 1, args.val_max).astype(int).tolist())
     log.info("Train tiles: %d   Val tiles: %d", len(train_ds), len(val_ds))
@@ -80,7 +95,12 @@ def main() -> int:
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers) \
         if len(val_ds) else None
 
-    model = DomainAdaptationWrapper(model_key=args.model, device_str=str(device)).to(device)
+    # With a complete cache the frozen backbone is never needed during training.
+    cache_base = lambda d: (args.cache_root / d.name) if args.cache_root else d
+    have_cache = args.backbone_cache and all((cache_base(d) / "backbone" / args.model / "train").exists()
+                                             for d in args.dataset_dir)
+    model = DomainAdaptationWrapper(model_key=args.model, device_str=str(device),
+                                    load_backbone=not have_cache).to(device)
     start_epoch = 1
     optimizer = torch.optim.AdamW(model.head.parameters(), lr=args.lr, weight_decay=1e-4)
     if args.resume:
@@ -92,7 +112,7 @@ def main() -> int:
 
     log.info("Trainable params: %.2f M", sum(p.numel() for p in model.head.parameters()) / 1e6)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    tag = args.strata or "all"
+    tag = args.tag or args.strata or "all"
     best_rmse = float("inf")
 
     for epoch in range(start_epoch, args.epochs + 1):
@@ -103,8 +123,9 @@ def main() -> int:
         pbar = tqdm(train_loader, desc=f"Epoch {epoch}/{args.epochs}", file=sys.stdout)
         for bi, batch in enumerate(pbar):
             images, heights = batch["image"].to(device), batch["height"].to(device)
+            depth = batch["depth"].to(device) if "depth" in batch else None
             with torch.autocast(device_type=device.type, enabled=use_amp):
-                out = model(images, target_height=heights)
+                out = model(images, target_height=heights, precomputed_depth=depth)
                 loss = out["loss"] / args.accumulate
             (scaler.scale(loss) if scaler else loss).backward()
             if (bi + 1) % args.accumulate == 0 or bi + 1 == len(train_loader):
@@ -146,7 +167,8 @@ def evaluate(model, loader, device) -> dict:
     model.eval()
     acc = RunningMetrics(max_pixels_per_sample=50_000)
     for batch in loader:
-        pred = model(batch["image"].to(device))["pred_height"].float().cpu().numpy()
+        pred = model(batch["image"].to(device),
+                     precomputed_depth=batch["depth"].to(device) if "depth" in batch else None)["pred_height"].float().cpu().numpy()
         ref = batch["height"].numpy()
         for p, r in zip(pred, ref):
             r = r[0].copy()

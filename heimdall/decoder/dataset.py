@@ -63,12 +63,19 @@ class RemoteSensingHeightDataset(Dataset):
         split: Literal["train", "val"] = "train",
         strata: str | None = None,
         augment: bool = True,
+        backbone_cache: str | None = None,
+        cache_root: str | Path | None = None,
     ):
         self.dataset_dir = Path(dataset_dir)
         self.patch_size = patch_size
         self.split = split
         self.strata = strata
         self.augment = augment
+        # Optional pre-computed frozen-backbone outputs (scripts/cache_backbone.py)
+        # Cache lives beside the dataset unless cache_root is given (read-only mounts, e.g. /kaggle/input).
+        root = Path(cache_root) / Path(dataset_dir).name if cache_root else Path(dataset_dir)
+        self.cache_dir = (root / "backbone" / backbone_cache / split) if backbone_cache else None
+        self.rng = random.Random(0)
         
         # Try GAMUS structure first: images/{split}/ and heights/{split}/
         self.img_dir = self.dataset_dir / "images" / split
@@ -197,17 +204,37 @@ class RemoteSensingHeightDataset(Dataset):
                 img = Image.open(path).convert('L')
                 return np.array(img).astype(np.float32)
 
+    def _cached_depth(self, img_path: Path, img_pil: "Image.Image"):
+        """Full-tile frozen-backbone output for this tile, plus the matching RGB.
+
+        Returns (depth HxW float32, rgb PIL) or (None, img_pil). With probability 0.5 during
+        training the *degraded* (satellite-like) variant is used, together with the matching
+        blurred RGB, so the head also learns coarse-sensor imagery.
+        """
+        if self.cache_dir is None:
+            return None, img_pil
+        cache = self.cache_dir / f"{img_path.stem}.npz"
+        if not cache.exists():
+            return None, img_pil
+        z = np.load(cache)
+        use_deg = self.split == "train" and self.augment and random.random() < 0.5
+        depth = z["degraded" if use_deg else "sharp"].astype(np.float32)
+        if use_deg:
+            f = float(z["factor"])
+            w, h = img_pil.size
+            small = img_pil.resize((max(8, int(w / f)), max(8, int(h / f))), Image.Resampling.BOX)
+            img_pil = small.resize((w, h), Image.Resampling.BILINEAR)
+        if depth.shape != (img_pil.size[1], img_pil.size[0]):
+            depth = np.asarray(Image.fromarray(depth).resize(img_pil.size, Image.Resampling.BILINEAR))
+        return depth, img_pil
+
     def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         img_path, hgt_path = self.samples[idx]
-        
-        # Load RGB image as numpy, then PIL for transforms
-        img_np = self._load_image(img_path)
-        img_pil = Image.fromarray(img_np)
-        
-        # Load height
-        hgt_np = self._load_height(hgt_path)
-        hgt_tensor = torch.from_numpy(hgt_np).unsqueeze(0)  # (1, H, W)
-        
+        img_pil = Image.fromarray(self._load_image(img_path))
+        hgt_tensor = torch.from_numpy(self._load_height(hgt_path)).unsqueeze(0)  # (1, H, W)
+        depth_np, img_pil = self._cached_depth(img_path, img_pil)
+        depth_tensor = torch.from_numpy(depth_np).unsqueeze(0) if depth_np is not None else None
+
         w, h = img_pil.size
         ps = self.patch_size
         if h >= ps and w >= ps:
@@ -219,28 +246,40 @@ class RemoteSensingHeightDataset(Dataset):
                 i, j = (h - ps) // 2, (w - ps) // 2
             img_pil = TF.crop(img_pil, i, j, ps, ps)
             hgt_tensor = hgt_tensor[:, i:i + ps, j:j + ps]
+            if depth_tensor is not None:
+                depth_tensor = depth_tensor[:, i:i + ps, j:j + ps]
         else:
             img_pil = TF.resize(img_pil, [ps, ps])
-            hgt_tensor = torch.nn.functional.interpolate(
-                hgt_tensor.unsqueeze(0), size=[ps, ps], mode="bilinear", align_corners=False
-            ).squeeze(0)
+            resize = lambda t: torch.nn.functional.interpolate(
+                t.unsqueeze(0), size=[ps, ps], mode="bilinear", align_corners=False).squeeze(0)
+            hgt_tensor = resize(hgt_tensor)
+            if depth_tensor is not None:
+                depth_tensor = resize(depth_tensor)
 
         img_tensor = TF.to_tensor(img_pil)
 
         if self.split == "train" and self.augment:
-            # Nadir heights are invariant to flips and 90° rotations.
+            # Nadir heights are invariant to flips and 90° rotations; the frozen backbone's
+            # output is transformed the same way as the image it was computed from.
+            tensors = [img_tensor, hgt_tensor] + ([depth_tensor] if depth_tensor is not None else [])
             if random.random() < 0.5:
-                img_tensor, hgt_tensor = img_tensor.flip(-1), hgt_tensor.flip(-1)
+                tensors = [t.flip(-1) for t in tensors]
             if random.random() < 0.5:
-                img_tensor, hgt_tensor = img_tensor.flip(-2), hgt_tensor.flip(-2)
+                tensors = [t.flip(-2) for t in tensors]
             k = random.randint(0, 3)
             if k:
-                img_tensor, hgt_tensor = torch.rot90(img_tensor, k, (-2, -1)), torch.rot90(hgt_tensor, k, (-2, -1))
+                tensors = [torch.rot90(t, k, (-2, -1)) for t in tensors]
+            img_tensor, hgt_tensor = tensors[0], tensors[1]
+            if depth_tensor is not None:
+                depth_tensor = tensors[2]
             # Mild photometric jitter (sensor / illumination differences).
             img_tensor = (img_tensor * random.uniform(0.85, 1.15) + random.uniform(-0.05, 0.05)).clamp(0, 1)
 
-        return {
+        out = {
             "image": img_tensor.contiguous(),
             "height": hgt_tensor.contiguous(),
             "image_path": str(img_path),
         }
+        if depth_tensor is not None:
+            out["depth"] = depth_tensor.contiguous()
+        return out
