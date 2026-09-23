@@ -33,7 +33,12 @@ import numpy as np
 logger = logging.getLogger("heimdall.pipeline")
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_WEIGHTS = REPO_ROOT / "checkpoints" / "decoder" / "decoder_best_all.pth"
+_CKPT_DIR = REPO_ROOT / "checkpoints" / "decoder"
+# Preference order: a head trained on the current (Depth Anything V2) backbone, then the
+# legacy GAMUS/DA3 head, which the AHN LiDAR benchmark showed has almost no skill.
+DEFAULT_WEIGHTS = next((p for p in (_CKPT_DIR / "decoder_best.pth", _CKPT_DIR / "decoder_best_ahn.pth",
+                                    _CKPT_DIR / "decoder_best_all.pth") if p.exists()),
+                       _CKPT_DIR / "decoder_best_all.pth")
 EVENT_PREFIX = "@@HEIMDALL "
 
 
@@ -192,7 +197,7 @@ def run(cfg: PipelineConfig) -> PipelineResult:
             ndsm = np.nan_to_num(ndsm, nan=0.0)
     else:
         from heimdall.depth.depth_anything import predict_relative_height
-        model_key = model_key or "da3-metric-l"
+        model_key = model_key or "vit-b"
         say("stage", stage="depth", message=f"Estimating relative height ({model_key})")
         rel = predict_relative_height(image, model_key=model_key, device=device)
     timings["depth"] = time.perf_counter() - t0

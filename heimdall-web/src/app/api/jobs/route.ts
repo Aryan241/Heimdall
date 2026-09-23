@@ -2,10 +2,15 @@ import { NextRequest } from 'next/server';
 import { writeFile } from 'fs/promises';
 import {
   JOB_NAME,
+  JOB_TIMEOUT_MS,
+  MAX_UPLOAD_BYTES,
+  acquireSlot,
   ensureDir,
   jobPath,
   listJobs,
   newJobId,
+  pruneJobs,
+  releaseSlot,
   runPython,
   safeExt,
   writeJobInfo,
@@ -35,6 +40,14 @@ export async function POST(req: NextRequest) {
   if (!(image instanceof File) || image.size === 0) {
     return Response.json({ error: 'No image file provided' }, { status: 400 });
   }
+  if (image.size > MAX_UPLOAD_BYTES) {
+    return Response.json({ error: `Image is ${(image.size / 1048576).toFixed(0)} MB; the limit is ` +
+      `${(MAX_UPLOAD_BYTES / 1048576).toFixed(0)} MB (set HEIMDALL_MAX_UPLOAD_MB to raise it).` }, { status: 413 });
+  }
+  if (!acquireSlot()) {
+    return Response.json({ error: 'The server is already processing the maximum number of jobs. Try again shortly.' },
+      { status: 429 });
+  }
   const dem = form.get('reference_dem');
   const gcps = form.get('gcps');
   let options: Record<string, unknown> = {};
@@ -43,6 +56,7 @@ export async function POST(req: NextRequest) {
   } catch {}
 
   const id = newJobId();
+  // From here on the slot is released by the stream's completion handler.
   const dir = jobPath(id);
   await ensureDir(dir);
 
@@ -100,12 +114,23 @@ export async function POST(req: NextRequest) {
 
       const abort = () => child.kill('SIGTERM');
       req.signal.addEventListener('abort', abort);
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        child.kill('SIGKILL');
+      }, JOB_TIMEOUT_MS);
 
       done.then(async (code) => {
+        clearTimeout(timer);
+        releaseSlot();
         req.signal.removeEventListener('abort', abort);
-        if (code === 0) {
+        if (timedOut) {
+          errorMessage = `Pipeline exceeded the ${Math.round(JOB_TIMEOUT_MS / 60000)} min time limit and was stopped.`;
+        }
+        if (code === 0 && !timedOut) {
           await writeJobInfo(id, { status: 'done', meta: `${JOB_NAME}_meta.json` });
           send('done', { id, meta: `${JOB_NAME}_meta.json` });
+          void pruneJobs();
         } else {
           const message = errorMessage ?? (logTail.filter((l) => /error|exception/i.test(l)).pop() ||
             `Pipeline exited with code ${code}`);

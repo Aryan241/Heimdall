@@ -78,7 +78,7 @@ def _load_model(model_key: str, device_str: str, use_fp16: bool = False):
 
 def predict_depth(
     image: np.ndarray,
-    model_key: str = "da3-metric-l",
+    model_key: str = "vit-b",
     device: torch.device | None = None,
 ) -> np.ndarray:
     """Run the backbone on one RGB image (H×W×3 uint8) and return its raw output at H×W."""
@@ -115,7 +115,7 @@ def to_closeness(raw: np.ndarray, model_key: str) -> np.ndarray:
 
 def predict_relative_height(
     image: np.ndarray,
-    model_key: str = "da3-metric-l",
+    model_key: str = "vit-b",
     device: torch.device | None = None,
     max_side: int = 1536,
 ) -> np.ndarray:

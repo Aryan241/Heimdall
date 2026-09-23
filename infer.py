@@ -38,7 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Decoder head checkpoint (.pth), or 'none' for backbone-only relative mode.")
     p.add_argument("--model", "-m", default=None,
                    choices=["vit-s", "vit-b", "vit-l", "da3-metric-l", "da3-mono-l"],
-                   help="Backbone (default: the one stored in the checkpoint, else da3-metric-l).")
+                   help="Backbone (default: the one stored in the checkpoint, else vit-b).")
     p.add_argument("--device", "-d", default=None, help="cuda / mps / cpu (auto if omitted).")
     p.add_argument("--reference-dem", type=Path, default=None, help="Low-res DEM GeoTIFF (SRTM, Copernicus, CartoDEM…).")
     p.add_argument("--no-auto-dem", action="store_true", help="Don't download Copernicus GLO-30 automatically.")

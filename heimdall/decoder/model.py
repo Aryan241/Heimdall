@@ -21,18 +21,20 @@ logger = logging.getLogger(__name__)
 class DomainAdaptationWrapper(nn.Module):
     """Frozen Depth Anything backbone + trainable ASPP DomainAdaptationHead."""
 
-    def __init__(self, model_key: str = "da3-metric-l", device_str: str = "cpu"):
+    def __init__(self, model_key: str = "vit-b", device_str: str = "cpu", load_backbone: bool = True):
         super().__init__()
-        from heimdall.depth.depth_anything import _load_model
         from heimdall.decoder.head import DomainAdaptationHead
         from heimdall.decoder.loss import MetricDepthLoss
 
         self.model_key = model_key
         self.is_da3 = model_key.startswith("da3")
-        self.processor, self.backbone = _load_model(model_key, device_str)
-        for param in self.backbone.parameters():
-            param.requires_grad = False
-        self.backbone.eval()
+        self.processor = self.backbone = None
+        if load_backbone:
+            from heimdall.depth.depth_anything import _load_model
+            self.processor, self.backbone = _load_model(model_key, device_str)
+            for param in self.backbone.parameters():
+                param.requires_grad = False
+            self.backbone.eval()
 
         self.head = DomainAdaptationHead(in_channels=4, hidden_dim=128)
         self.loss_fn = MetricDepthLoss(alpha=1.0, beta=0.5, gamma=0.1)
@@ -40,7 +42,8 @@ class DomainAdaptationWrapper(nn.Module):
     def train(self, mode: bool = True):
         """Keep the backbone in eval mode whatever the wrapper's mode."""
         super().train(mode)
-        self.backbone.eval()
+        if self.backbone is not None:
+            self.backbone.eval()
         return self
 
     def _extract_relative_depth_da2(self, rgb_tensor: torch.Tensor) -> torch.Tensor:
@@ -65,9 +68,17 @@ class DomainAdaptationWrapper(nn.Module):
                 maps.append(np.asarray(self.backbone.inference([img]).depth[0], dtype=np.float32))
         return torch.from_numpy(np.stack(maps)).to(rgb_tensor.device).unsqueeze(1)
 
-    def forward(self, rgb_tensor: torch.Tensor, target_height: torch.Tensor | None = None) -> dict[str, torch.Tensor]:
-        """rgb_tensor: (B,3,H,W) in [0,1]; target_height: (B,1,H,W) metres (optional)."""
-        if self.is_da3:
+    def forward(self, rgb_tensor: torch.Tensor, target_height: torch.Tensor | None = None,
+                precomputed_depth: torch.Tensor | None = None) -> dict[str, torch.Tensor]:
+        """rgb_tensor: (B,3,H,W) in [0,1]; target_height: (B,1,H,W) metres (optional).
+
+        *precomputed_depth* skips the frozen backbone (see scripts/cache_backbone.py).
+        """
+        if precomputed_depth is not None:
+            relative_depth = precomputed_depth
+        elif self.backbone is None:
+            raise RuntimeError("Backbone not loaded and no precomputed depth supplied")
+        elif self.is_da3:
             relative_depth = self._extract_relative_depth_da3(rgb_tensor)
         else:
             relative_depth = self._extract_relative_depth_da2(rgb_tensor)
@@ -94,7 +105,7 @@ def load_wrapper(weights: str | Path, device: torch.device, model_key: str | Non
         state = ckpt["state_dict"]
     else:
         state = ckpt
-    model_key = model_key or "da3-metric-l"
+    model_key = model_key or "vit-b"
     state = {k.replace("module.", "").removeprefix("head."): v for k, v in state.items()}
 
     wrapper = DomainAdaptationWrapper(model_key=model_key, device_str=str(device))
@@ -102,6 +113,10 @@ def load_wrapper(weights: str | Path, device: torch.device, model_key: str | Non
     wrapper = wrapper.to(device).eval()
     logger.info("Loaded decoder head %s (backbone %s, epoch %s)", Path(weights).name, model_key,
                 ckpt.get("epoch") if isinstance(ckpt, dict) else "?")
+    if model_key.startswith("da3"):
+        logger.warning("This head was trained on a Depth Anything V3 metric backbone, which is nearly blind to "
+                       "height in nadir imagery (LiDAR benchmark: r≈0.06). Retrain on a V2 backbone — see "
+                       "docs/KAGGLE_TRAINING.md.")
     return wrapper
 
 
