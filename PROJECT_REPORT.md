@@ -12,7 +12,7 @@ Heimdall converts a **single optical RGB remote-sensing image** into an elevatio
 * **Non-georeferenced input (PNG / JPG)** → **relative DSM (rDSM)**: height above local ground, in metres when the ground sample distance is known or can be estimated.
 * **Visualisation**: a web platform (Next.js + React Three Fiber) with upload, live progress, a UV-textured terrain mesh, orbit and first-person flight, true-metre height/slope readouts, distance and profile measurement, water-level simulation, and built-in **validation against reference DSM / LiDAR rasters**.
 
-The height model is a frozen **Depth Anything V3 Metric-Large** backbone plus a trained **ASPP domain-adaptation head**. The head predicts per-pixel scale and shift fields that map backbone depth to metric height above ground. It was trained on GAMUS (0.33 m RGB + nDSM).
+The height model is a frozen **Depth Anything V2** backbone plus a trained **ASPP domain-adaptation head** that predicts per-pixel scale and shift fields mapping backbone depth to metric height above ground. *Status: the shipped checkpoint was trained on a Depth Anything V3 metric backbone which the LiDAR benchmark (§4.4) showed is nearly blind to height in nadir imagery; the head is being retrained on V2 (`docs/KAGGLE_TRAINING.md`).*
 
 ---
 
@@ -20,7 +20,7 @@ The height model is a frozen **Depth Anything V3 Metric-Large** backbone plus a 
 
 | Requirement (PS 26175) | Implementation |
 |---|---|
-| Pre-trained monocular backbone for relative depth | Depth Anything V3 Metric-Large, frozen (`heimdall/depth`, `depth_anything_3/`) |
+| Pre-trained monocular backbone for relative depth | Depth Anything V2 (frozen); V3 bundled and selectable (`heimdall/depth`, `depth_anything_3/`) |
 | rDSM for non-georeferenced imagery | `infer.py` on PNG/JPG → `*_rdsm.tif` (+ PNG, mesh) |
 | Absolute DSM for georeferenced imagery using SRTM-class DEM or GCPs | DTM from reprojected coarse DEM (auto Copernicus GLO-30 / user DEM) + nDSM; GCP offset/plane correction (`heimdall/calibration/dem.py`) |
 | Output DSM in a standard geospatial format | Float32 GeoTIFF with source CRS and geotransform, nodata, units and product tags |
@@ -39,7 +39,7 @@ The height model is a frozen **Depth Anything V3 Metric-Large** backbone plus a 
    │ Stage 1  Ingest — GeoTIFF (CRS, transform, nodata) or plain image; band order; 16-bit percentile stretch
    │ Stage 2  GSD — from the geotransform (projected or geographic CRS), --gsd, or a vehicle-size heuristic
    │ Stage 3  Resample to the working GSD (0.33 m = training GSD; up-sampling capped at 3×)
-   │ Stage 4  Height — DA3 Metric-L (frozen) + ASPP head on 512² tiles, raised-cosine blending → nDSM (m)
+   │ Stage 4  Height — DA2 (frozen) + ASPP head on 512² tiles, raised-cosine blending → nDSM (m)
    │ Stage 5  Calibration — DSM = DTM + nDSM; DTM from coarse DEM reprojected to the image grid,
    │          morphological opening (bare earth) + smooth up-sampling; optional GCP plane
    │ Stage 6  Outputs — DSM / nDSM / DTM GeoTIFF, 16-bit PNG, hill-shaded preview, metadata JSON
@@ -52,7 +52,7 @@ Modules: `heimdall/pipeline.py` orchestrates everything and is shared by the CLI
 The head learned *metric* heights from GAMUS imagery at 0.33 m/px. A monocular model infers height partly from apparent object size, so feeding it 0.01 m drone imagery or 1 m satellite imagery at native resolution changes what "a building" looks like. Heimdall therefore resamples every georeferenced image (and any image with a known GSD) to 0.33 m before inference, then writes the DSM on that working grid with a consistent geotransform.
 
 ### 2.2 Height model
-* **Backbone**: Depth Anything V3 Metric-Large (~334 M parameters, frozen). DA3 returns *depth*, where larger means farther. For the backbone-only path this is sign-corrected to a relative height (height ≈ H_sensor − depth for a distant nadir sensor).
+* **Backbone**: Depth Anything V2 Base (~98 M parameters, frozen), selected by measured correlation with LiDAR height (§4.4). V2 returns relative *disparity* (larger = closer = taller). V3 remains selectable (`--model da3-metric-l`); its output is sign-corrected, as it returns depth.
 * **Head** (`heimdall/decoder/head.py`): RGB + backbone depth → conv stem → ASPP (dilations 1/6/12/18 + global pooling) → two maps, a scale `S(x,y)` and a shift `T(x,y)`:
 
   `nDSM(x, y) = ReLU( S(x, y) · D(x, y) + T(x, y) )`
@@ -134,27 +134,44 @@ The reference is reprojected onto the prediction grid, using average resampling 
 
 Also written: an error map, a scatter plot, an error histogram, and per-class tables. A synthetic check (reference = prediction + 30 m + N(0, 0.5 m) noise, reprojected to EPSG:4326) recovers the 30 m offset exactly, with a 0.26 m residual RMSE.
 
-### 4.4 Results
+### 4.4 Results — independent LiDAR benchmark (Netherlands, AHN)
 
-> **To be filled from `eval.py` output.** Run on the GAMUS **test** split (not used in training):
->
-> ```bash
-> python eval.py --weights checkpoints/decoder/decoder_best_all.pth --data-dir <GAMUS> --split test \
->                --output results/gamus_test.json
-> ```
->
-> Copy the OVERALL, landscape and pixel-class rows and the predict-zero baseline here. Do not quote numbers that were not produced by this command.
+`scripts/benchmark_ahn.py` downloads open Dutch aerial orthophotos and AHN LiDAR
+(DSM and DTM, 0.5 m), runs the production pipeline and scores predicted height above
+ground against `AHN DSM − AHN DTM`. None of the sites were used for training. Measured
+with the **shipped (GAMUS / DA3-metric) head**, 400 m sites, 0.25 m imagery:
 
-| Group | RMSE (m) | MAE (m) | Bias (m) | NMAD (m) | r |
-|---|---|---|---|---|---|
-| Overall | | | | | |
-| Predict-zero baseline | | | | | |
-| Urban | | | | | |
-| Forested | | | | | |
-| Sparse | | | | | |
-| Building pixels | | | | | |
-| Tree pixels | | | | | |
-| Ground pixels | | | | | |
+| Site | Landscape | nDSM RMSE (m) | MAE (m) | Bias (m) | r | Predict-zero RMSE (m) |
+|---|---|---|---|---|---|---|
+| amsterdam_centre | dense historic urban | 13.06 | 9.16 | −8.65 | −0.08 | 13.32 |
+| rotterdam_centre | high-rise urban | 21.59 | 12.55 | −11.47 | 0.24 | 22.92 |
+| utrecht_suburb | suburban residential | 3.57 | 2.45 | −1.44 | 0.44 | 4.75 |
+| rotterdam_port | industrial | 8.96 | 5.41 | −4.93 | 0.71 | 11.01 |
+| westland_greenhouses | greenhouses | 2.20 | 1.71 | +0.82 | 0.72 | 3.90 |
+| veluwe_forest | forest | 3.02 | 1.64 | −1.12 | 0.73 | 4.25 |
+| flevoland_farmland | sparse rural | 2.39 | 1.45 | +1.22 | −0.08 | 1.43 |
+| valkenburg_hills | hilly town | 4.77 | 2.68 | −2.10 | 0.34 | 5.38 |
+| **mean** | | **7.44** | **4.63** | — | **0.38** | **8.37** |
+
+**Interpretation.** The shipped head is barely better than predicting 0 m everywhere
+(7.44 m vs 8.37 m RMSE) and strongly under-predicts tall structures. Object-based
+regularisation changes the metrics by < 0.01 m — it improves appearance, not accuracy.
+
+**Root cause (measured).** Correlation between each frozen backbone's output and LiDAR
+height, same eight sites:
+
+| Backbone | Mean r | s/tile (MPS) |
+|---|---|---|
+| DA3 Metric-Large (shipped head's backbone) | 0.06 | 26 |
+| DA2 Small | 0.35 | 1.5 |
+| **DA2 Base** | **0.41** | 2.2 |
+| DA2 Large | 0.41 | 6.6 |
+
+Depth Anything V3's metric branch is trained for ground-level cameras; on a nadir view it
+returns an almost constant depth plane, so the head had no geometric signal and could only
+infer height from colour and texture. The pipeline default is therefore Depth Anything V2
+(`vit-b`), and the head must be retrained on it — see `docs/KAGGLE_TRAINING.md`. The
+benchmark is re-run after training to quantify the improvement.
 
 ### 4.5 Qualitative end-to-end run (bundled demo)
 Georeferenced drone orthomosaic, Kathmandu (EPSG:32645, 1.25 cm GSD, 7649 × 8154 px):
