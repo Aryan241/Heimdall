@@ -223,6 +223,13 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
 .legend-bar { height: 10px; border-radius: 4px; }
 .legend-labels { display: flex; justify-content: space-between; margin-top: 3px; font-variant-numeric: tabular-nums; }
 
+.viewer-compass { position: absolute; z-index: 5; top: 56px; right: 250px; opacity: 0.9; }
+.viewer-scalebar {
+  position: absolute; z-index: 5; bottom: 88px; right: 12px; display: flex; flex-direction: column; align-items: center;
+  gap: 3px; background: rgba(8, 11, 17, 0.7); padding: 5px 8px; border-radius: 8px; font-size: 11px; color: var(--text-2);
+}
+.scalebar-line { height: 5px; border: 1px solid rgba(255, 255, 255, 0.75); border-top: none; }
+
 /* ── Responsive ────────────────────────────────────────────────────────── */
 @media (max-width: 1000px) {
   .app { height: auto; min-height: 100vh; }
@@ -231,6 +238,6 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
   .stage-area { order: 1; height: 78vh; }
   .viewer-controls { top: auto; bottom: 48px; width: 200px; }
   .viewer-hud { display: none; }
-  .viewer-legend { display: none; }
+  .viewer-legend, .viewer-compass, .viewer-scalebar { display: none; }
   .header { flex-direction: column; align-items: flex-start; padding: 0.75rem 1rem; }
 }
