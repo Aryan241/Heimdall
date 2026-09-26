@@ -12,9 +12,25 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
+def _norm(channels: int, kind: str = "group") -> nn.Module:
+    """Normalisation layer.
+
+    GroupNorm is the default: it is batch-size independent, so training works with
+    batch 1 (BatchNorm cannot — the ASPP global-pooling branch is 1x1, and BatchNorm
+    needs >1 value per channel), small batches on memory-constrained GPUs behave the
+    same as large ones, and there are no running statistics to go stale between
+    training and inference. ``kind="batch"`` restores the original BatchNorm head so
+    checkpoints trained before this change still load.
+    """
+    if kind == "batch":
+        return nn.BatchNorm2d(channels)
+    return nn.GroupNorm(num_groups=min(32, max(1, channels // 8)), num_channels=channels)
+
 class ASPP(nn.Module):
     """Atrous Spatial Pyramid Pooling module for multi-scale context aggregation."""
-    def __init__(self, in_channels: int, out_channels: int, dilations: list[int] = [1, 6, 12, 18]):
+    def __init__(self, in_channels: int, out_channels: int, dilations: list[int] = [1, 6, 12, 18],
+                 norm: str = "group"):
         super().__init__()
         
         self.branches = nn.ModuleList()
@@ -24,7 +40,7 @@ class ASPP(nn.Module):
             
             self.branches.append(nn.Sequential(
                 nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding, dilation=dilation, bias=False),
-                nn.BatchNorm2d(out_channels),
+                _norm(out_channels, norm),
                 nn.ReLU(inplace=True)
             ))
             
@@ -32,14 +48,14 @@ class ASPP(nn.Module):
         self.global_pool = nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
             nn.Conv2d(in_channels, out_channels, 1, bias=False),
-            nn.BatchNorm2d(out_channels),
+            _norm(out_channels, norm),
             nn.ReLU(inplace=True)
         )
         
         # Bottleneck to fuse all branches
         self.bottleneck = nn.Sequential(
             nn.Conv2d(out_channels * (len(dilations) + 1), out_channels, 3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
+            _norm(out_channels, norm),
             nn.ReLU(inplace=True),
             nn.Dropout(0.1)
         )
@@ -62,26 +78,26 @@ class DomainAdaptationHead(nn.Module):
     Concatenates RGB (3ch) + relative depth (1ch), extracts multi-scale features
     using ASPP, and regresses absolute metric height.
     """
-    def __init__(self, in_channels: int = 4, hidden_dim: int = 128):
+    def __init__(self, in_channels: int = 4, hidden_dim: int = 128, norm: str = "group"):
         super().__init__()
         
         # Initial stem
         self.stem = nn.Sequential(
             nn.Conv2d(in_channels, hidden_dim // 2, 3, padding=1, bias=False),
-            nn.BatchNorm2d(hidden_dim // 2),
+            _norm(hidden_dim // 2, norm),
             nn.ReLU(inplace=True),
             nn.Conv2d(hidden_dim // 2, hidden_dim, 3, padding=1, bias=False),
-            nn.BatchNorm2d(hidden_dim),
+            _norm(hidden_dim, norm),
             nn.ReLU(inplace=True)
         )
         
         # Multi-scale context
-        self.aspp = ASPP(hidden_dim, hidden_dim)
+        self.aspp = ASPP(hidden_dim, hidden_dim, norm=norm)
         
         # Decoder/Projection (2 channels: Scale and Shift)
         self.decoder = nn.Sequential(
             nn.Conv2d(hidden_dim, hidden_dim // 2, 3, padding=1, bias=False),
-            nn.BatchNorm2d(hidden_dim // 2),
+            _norm(hidden_dim // 2, norm),
             nn.ReLU(inplace=True),
             nn.Conv2d(hidden_dim // 2, 2, 1)
         )

@@ -204,3 +204,18 @@ def test_cached_mode_skips_uncached_tiles(tmp_path):
     assert len(RemoteSensingHeightDataset(tmp_path, split="train", patch_size=64)) == 3
     ds = RemoteSensingHeightDataset(tmp_path, split="train", patch_size=64, backbone_cache="vit-b")
     assert len(ds) == 1 and "depth" in ds[0]
+
+
+def test_head_trains_with_batch_size_one_and_loads_legacy_batchnorm():
+    """GroupNorm head must work at batch 1 (BatchNorm cannot), and old checkpoints still load."""
+    import torch
+    from heimdall.decoder.head import DomainAdaptationHead
+    head = DomainAdaptationHead()
+    out = head(torch.rand(1, 3, 64, 64), torch.rand(1, 1, 64, 64))   # training mode, batch 1
+    out.sum().backward()
+    assert out.shape == (1, 1, 64, 64)
+    assert not any("running_mean" in k for k in head.state_dict())
+
+    legacy = DomainAdaptationHead(norm="batch").state_dict()
+    assert any("running_mean" in k for k in legacy)
+    DomainAdaptationHead(norm="batch").load_state_dict(legacy, strict=True)

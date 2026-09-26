@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 class DomainAdaptationWrapper(nn.Module):
     """Frozen Depth Anything backbone + trainable ASPP DomainAdaptationHead."""
 
-    def __init__(self, model_key: str = "vit-b", device_str: str = "cpu", load_backbone: bool = True):
+    def __init__(self, model_key: str = "vit-b", device_str: str = "cpu", load_backbone: bool = True,
+                 norm: str = "group"):
         super().__init__()
         from heimdall.decoder.head import DomainAdaptationHead
         from heimdall.decoder.loss import MetricDepthLoss
@@ -36,7 +37,7 @@ class DomainAdaptationWrapper(nn.Module):
                 param.requires_grad = False
             self.backbone.eval()
 
-        self.head = DomainAdaptationHead(in_channels=4, hidden_dim=128)
+        self.head = DomainAdaptationHead(in_channels=4, hidden_dim=128, norm=norm)
         self.loss_fn = MetricDepthLoss(alpha=1.0, beta=0.5, gamma=0.1)
 
     def train(self, mode: bool = True):
@@ -107,8 +108,10 @@ def load_wrapper(weights: str | Path, device: torch.device, model_key: str | Non
         state = ckpt
     model_key = model_key or "vit-b"
     state = {k.replace("module.", "").removeprefix("head."): v for k, v in state.items()}
+    # Heads trained before the GroupNorm switch carry BatchNorm running statistics.
+    norm = "batch" if any(k.endswith("running_mean") for k in state) else "group"
 
-    wrapper = DomainAdaptationWrapper(model_key=model_key, device_str=str(device))
+    wrapper = DomainAdaptationWrapper(model_key=model_key, device_str=str(device), norm=norm)
     wrapper.head.load_state_dict(state, strict=True)
     wrapper = wrapper.to(device).eval()
     logger.info("Loaded decoder head %s (backbone %s, epoch %s)", Path(weights).name, model_key,
