@@ -22,10 +22,11 @@ class DomainAdaptationWrapper(nn.Module):
     """Frozen Depth Anything backbone + trainable ASPP DomainAdaptationHead."""
 
     def __init__(self, model_key: str = "vit-b", device_str: str = "cpu", load_backbone: bool = True,
-                 norm: str = "group"):
+                 norm: str = "group", head: str = "affine"):
         super().__init__()
         from heimdall.decoder.head import DomainAdaptationHead
         from heimdall.decoder.loss import MetricDepthLoss
+        from heimdall.decoder.multiscale_head import MultiScaleHeightHead
 
         self.model_key = model_key
         self.is_da3 = model_key.startswith("da3")
@@ -37,7 +38,12 @@ class DomainAdaptationWrapper(nn.Module):
                 param.requires_grad = False
             self.backbone.eval()
 
-        self.head = DomainAdaptationHead(in_channels=4, hidden_dim=128, norm=norm)
+        # "affine": RGB + the backbone's scalar depth only (small, cacheable).
+        # "multiscale": the DPT feature pyramid as well — far more signal, needs the backbone
+        # in the loop during training, so it cannot use the pre-computed depth cache.
+        self.head_kind = head
+        self.head = (MultiScaleHeightHead() if head == "multiscale"
+                     else DomainAdaptationHead(in_channels=4, hidden_dim=128, norm=norm))
         self.loss_fn = MetricDepthLoss(alpha=1.0, beta=0.5, gamma=0.1)
 
     def train(self, mode: bool = True):
@@ -47,12 +53,37 @@ class DomainAdaptationWrapper(nn.Module):
             self.backbone.eval()
         return self
 
-    def _extract_relative_depth_da2(self, rgb_tensor: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _normalise(rgb_tensor: torch.Tensor) -> torch.Tensor:
         mean = torch.tensor([0.485, 0.456, 0.406], device=rgb_tensor.device).view(1, 3, 1, 1)
         std = torch.tensor([0.229, 0.224, 0.225], device=rgb_tensor.device).view(1, 3, 1, 1)
+        return (rgb_tensor - mean) / std
+
+    def _extract_relative_depth_da2(self, rgb_tensor: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
-            outputs = self.backbone(pixel_values=(rgb_tensor - mean) / std)
+            outputs = self.backbone(pixel_values=self._normalise(rgb_tensor))
         return outputs.predicted_depth.unsqueeze(1)
+
+    def _extract_pyramid_da2(self, rgb_tensor: torch.Tensor) -> tuple[torch.Tensor, list[torch.Tensor]]:
+        """Backbone depth *and* the DPT neck's four feature maps (frozen, no gradients).
+
+        Mirrors DepthAnythingForDepthEstimation.forward so the depth is identical to the
+        stock model's, while also handing back the pyramid the stock head discards.
+        """
+        b = self.backbone
+        patch = b.config.patch_size
+        h, w = rgb_tensor.shape[-2:]
+        # The ViT needs input divisible by the patch size.
+        ph, pw = max(1, h // patch), max(1, w // patch)
+        x = self._normalise(rgb_tensor)
+        if (h, w) != (ph * patch, pw * patch):
+            x = torch.nn.functional.interpolate(x, size=(ph * patch, pw * patch),
+                                                mode="bilinear", align_corners=False)
+        with torch.no_grad():
+            hidden = b.backbone.forward_with_filtered_kwargs(x, output_hidden_states=True).feature_maps
+            stages = b.neck(hidden, ph, pw)
+            depth = b.head(stages, ph, pw).unsqueeze(1)
+        return depth, list(stages)
 
     def _extract_relative_depth_da3(self, rgb_tensor: torch.Tensor) -> torch.Tensor:
         """Raw DA3 depth for each image in the batch.
@@ -75,16 +106,22 @@ class DomainAdaptationWrapper(nn.Module):
 
         *precomputed_depth* skips the frozen backbone (see scripts/cache_backbone.py).
         """
-        if precomputed_depth is not None:
-            relative_depth = precomputed_depth
-        elif self.backbone is None:
-            raise RuntimeError("Backbone not loaded and no precomputed depth supplied")
-        elif self.is_da3:
-            relative_depth = self._extract_relative_depth_da3(rgb_tensor)
+        if self.head_kind == "multiscale":
+            if self.backbone is None or self.is_da3:
+                raise RuntimeError("The multiscale head needs a Depth Anything V2 backbone in the loop "
+                                   "(it consumes the DPT pyramid, so cached depth is not enough).")
+            relative_depth, stages = self._extract_pyramid_da2(rgb_tensor)
+            pred_height = self.head(rgb_tensor, relative_depth, stages)
         else:
-            relative_depth = self._extract_relative_depth_da2(rgb_tensor)
-
-        pred_height = self.head(rgb_tensor, relative_depth)
+            if precomputed_depth is not None:
+                relative_depth = precomputed_depth
+            elif self.backbone is None:
+                raise RuntimeError("Backbone not loaded and no precomputed depth supplied")
+            elif self.is_da3:
+                relative_depth = self._extract_relative_depth_da3(rgb_tensor)
+            else:
+                relative_depth = self._extract_relative_depth_da2(rgb_tensor)
+            pred_height = self.head(rgb_tensor, relative_depth)
         if target_height is not None and pred_height.shape[2:] != target_height.shape[2:]:
             pred_height = torch.nn.functional.interpolate(
                 pred_height, size=target_height.shape[2:], mode="bilinear", align_corners=False
@@ -110,8 +147,11 @@ def load_wrapper(weights: str | Path, device: torch.device, model_key: str | Non
     state = {k.replace("module.", "").removeprefix("head."): v for k, v in state.items()}
     # Heads trained before the GroupNorm switch carry BatchNorm running statistics.
     norm = "batch" if any(k.endswith("running_mean") for k in state) else "group"
+    # The multiscale head is recognisable by its pyramid projections.
+    head_kind = (ckpt.get("head") if isinstance(ckpt, dict) else None) or \
+                ("multiscale" if any(k.startswith("project.") for k in state) else "affine")
 
-    wrapper = DomainAdaptationWrapper(model_key=model_key, device_str=str(device), norm=norm)
+    wrapper = DomainAdaptationWrapper(model_key=model_key, device_str=str(device), norm=norm, head=head_kind)
     wrapper.head.load_state_dict(state, strict=True)
     wrapper = wrapper.to(device).eval()
     logger.info("Loaded decoder head %s (backbone %s, epoch %s)", Path(weights).name, model_key,

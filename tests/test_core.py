@@ -228,3 +228,19 @@ def test_tile_id_handles_gamus_naming_variants():
     for stem, want in [("DC_01_25_RGB", "DC_01_25"), ("NYC_22835_IMG", "NYC_22835"),
                        ("NYC_22835_AGL", "NYC_22835"), ("PHL_6393_CLS", "PHL_6393")]:
         assert extract(None, stem) == want
+
+
+def test_multiscale_head_shapes_and_identity_init():
+    """The pyramid decoder must accept the 4 neck stages and start near identity (height≈depth)."""
+    import torch
+    from heimdall.decoder.multiscale_head import MultiScaleHeightHead
+    head = MultiScaleHeightHead()
+    rgb = torch.rand(2, 3, 128, 128)
+    depth = torch.rand(2, 1, 128, 128) * 5
+    stages = [torch.randn(2, 128, s, s) for s in (8, 16, 32, 64)]   # coarse → fine
+    out = head(rgb, depth, stages)
+    assert out.shape == (2, 1, 128, 128)
+    assert (out >= 0).all()                       # heights are non-negative
+    out.sum().backward()
+    with pytest.raises(AssertionError):
+        head(rgb, depth, stages[:3])              # wrong pyramid length is caught

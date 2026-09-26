@@ -46,6 +46,9 @@ def main() -> int:
                     choices=["vit-s", "vit-b", "vit-l", "da3-metric-l", "da3-mono-l"])
     ap.add_argument("--cache-root", type=Path, default=None,
                     help="Where cache_backbone.py wrote its caches (for read-only dataset mounts).")
+    ap.add_argument("--head", default="multiscale", choices=["affine", "multiscale"],
+                    help="multiscale: decode the DPT feature pyramid (stronger, backbone runs each step). "
+                         "affine: RGB + scalar depth only (weaker, can use --backbone-cache).")
     ap.add_argument("--backbone-cache", action="store_true",
                     help="Use pre-computed backbone outputs from scripts/cache_backbone.py (much faster).")
     ap.add_argument("--output-dir", "--output_dir", dest="output_dir", type=Path, default=Path("checkpoints/decoder"))
@@ -72,6 +75,10 @@ def main() -> int:
     use_amp = supports_amp(device)
     log.info("Device: %s  AMP: %s", device, use_amp)
 
+    if args.head == "multiscale" and args.backbone_cache:
+        log.warning("--backbone-cache only caches the scalar depth, which the multiscale head does not "
+                    "use; ignoring it and running the frozen backbone in the loop.")
+        args.backbone_cache = False
     cache = args.model if args.backbone_cache else None
 
     def build(split: str, augment: bool):
@@ -103,7 +110,7 @@ def main() -> int:
     have_cache = args.backbone_cache and all((cache_base(d) / "backbone" / args.model / "train").exists()
                                              for d in args.dataset_dir)
     model = DomainAdaptationWrapper(model_key=args.model, device_str=str(device),
-                                    load_backbone=not have_cache).to(device)
+                                    load_backbone=not have_cache, head=args.head).to(device)
     start_epoch = 1
     optimizer = torch.optim.AdamW(model.head.parameters(), lr=args.lr, weight_decay=1e-4)
     if args.resume:
@@ -170,7 +177,7 @@ def main() -> int:
                  val.get("pearson_r", float("nan")), time.time() - t0)
 
         state = {"epoch": epoch, "head_state_dict": model.head.state_dict(), "loss": train_loss,
-                 "val": val, "model_key": args.model}
+                 "val": val, "model_key": args.model, "head": args.head}
         torch.save({**state, "optimizer_state_dict": optimizer.state_dict()},
                    args.output_dir / f"decoder_ep{epoch:02d}_{tag}.pth")
         score = val.get("rmse", train_loss)
