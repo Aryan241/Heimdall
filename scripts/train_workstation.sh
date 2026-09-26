@@ -87,8 +87,8 @@ if has cache; then
   $PY scripts/cache_backbone.py --dataset-dir data/GAMUS --model "$MODEL" --device "cuda:$CACHE_GPU_A" \
       --splits train val &
   pid_a=$!
-  $PY scripts/cache_backbone.py --dataset-dir data/AHN --model "$MODEL" --device "cuda:$CACHE_GPU_B" \
-      --splits train val &
+  $PY scripts/cache_backbone.py --dataset-dir data/AHN data/AHN_1m --model "$MODEL" \
+      --device "cuda:$CACHE_GPU_B" --splits train val &
   pid_b=$!
   wait $pid_a $pid_b
 fi
@@ -96,7 +96,7 @@ fi
 if has train; then
   say "3/4 Training the head on cuda:$TRAIN_GPU ($MODEL, $EPOCHS epochs)"
   $PY scripts/train_decoder.py \
-      --dataset-dir data/GAMUS data/AHN \
+      --dataset-dir data/GAMUS data/AHN data/AHN_1m \
       --model "$MODEL" --backbone-cache --gpu "$TRAIN_GPU" \
       --epochs "$EPOCHS" --batch-size "$BATCH" --patch-size "$PATCH" --accumulate "$ACCUM" \
       --lr "$LR" --num-workers 6 \
