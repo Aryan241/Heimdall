@@ -39,6 +39,9 @@ import numpy as np
 
 DATASET = "earthflow/GAMUS"
 MODALITIES = {"images": "RGB", "heights": "AGL", "classes": "CLS"}
+# GAMUS is not consistent: DC and PHL name their imagery <tile>_RGB.h5, NYC uses <tile>_IMG.h5
+# (2167 of 8724 tiles). Heights and labels are always _AGL / _CLS.
+IMAGE_SUFFIXES = ("RGB", "IMG")
 
 
 def _download(kind: str, split: str, tile: str, suffix: str, tmp: Path, tries: int = 6) -> Path:
@@ -70,7 +73,8 @@ def _read_h5(path: Path) -> np.ndarray:
         return np.array(f[list(f.keys())[0]])
 
 
-def convert_tile(tile: str, split: str, out: Path, want_classes: bool, quality: int) -> str | None:
+def convert_tile(tile: str, split: str, out: Path, want_classes: bool, quality: int,
+                 image_suffix: str = "RGB") -> str | None:
     """Download one tile's HDF5 files, write compact outputs, delete the originals."""
     import rasterio
     from huggingface_hub import hf_hub_download
@@ -87,7 +91,8 @@ def convert_tile(tile: str, split: str, out: Path, want_classes: bool, quality: 
     try:
         # Image and height are required; class labels are optional (a few tiles lack them).
         for kind in ("images", "heights"):
-            local = _download(kind, split, tile, MODALITIES[kind], tmp)
+            suffix = image_suffix if kind == "images" else MODALITIES[kind]
+            local = _download(kind, split, tile, suffix, tmp)
             downloaded.append(local)
             arr = _read_h5(local)
             if kind == "images":
@@ -138,8 +143,16 @@ def main() -> int:
     rng = np.random.default_rng(args.seed)
     total = 0
     for split in args.splits:
-        tiles = sorted(f.split("/")[-1].removesuffix("_RGB.h5")
-                       for f in files if f.startswith(f"images/{split}/"))
+        tiles = []
+        for f in files:
+            if not f.startswith(f"images/{split}/"):
+                continue
+            name = f.split("/")[-1].removesuffix(".h5")
+            for suf in IMAGE_SUFFIXES:
+                if name.endswith("_" + suf):
+                    tiles.append((name.removesuffix("_" + suf), suf))
+                    break
+        tiles.sort()
         if args.tiles and len(tiles) > args.tiles:
             # Random (but reproducible) subset, so a partial download still covers every city.
             tiles = [tiles[i] for i in sorted(rng.choice(len(tiles), args.tiles, replace=False))]
@@ -148,8 +161,8 @@ def main() -> int:
 
         done = 0
         with ThreadPoolExecutor(args.workers) as ex:
-            futures = [ex.submit(convert_tile, t, split, args.out, not args.no_classes, args.quality)
-                       for t in tiles]
+            futures = [ex.submit(convert_tile, t, split, args.out, not args.no_classes, args.quality, suf)
+                       for t, suf in tiles]
             for i, fut in enumerate(futures, 1):
                 fut.result()
                 if i % 50 == 0 or i == len(futures):

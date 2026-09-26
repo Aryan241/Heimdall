@@ -219,3 +219,12 @@ def test_head_trains_with_batch_size_one_and_loads_legacy_batchnorm():
     legacy = DomainAdaptationHead(norm="batch").state_dict()
     assert any("running_mean" in k for k in legacy)
     DomainAdaptationHead(norm="batch").load_state_dict(legacy, strict=True)
+
+
+def test_tile_id_handles_gamus_naming_variants():
+    """GAMUS names imagery _RGB in DC/PHL but _IMG in NYC; both must pair with _AGL heights."""
+    from heimdall.decoder.dataset import RemoteSensingHeightDataset as DS
+    extract = DS.__dict__["_extract_tile_id"]
+    for stem, want in [("DC_01_25_RGB", "DC_01_25"), ("NYC_22835_IMG", "NYC_22835"),
+                       ("NYC_22835_AGL", "NYC_22835"), ("PHL_6393_CLS", "PHL_6393")]:
+        assert extract(None, stem) == want

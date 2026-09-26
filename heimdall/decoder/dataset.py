@@ -126,11 +126,11 @@ class RemoteSensingHeightDataset(Dataset):
     def _extract_tile_id(self, stem: str) -> str:
         """Extract a tile ID from a filename stem for matching.
         
-        GAMUS naming: DC_01_25_RGB -> tile_id = DC_01_25
+        GAMUS naming: DC_01_25_RGB -> DC_01_25; NYC tiles use _IMG instead of _RGB
         ISPRS naming: top_potsdam_2_10_RGB -> tile_id = 2_10
         """
         # Strip common suffixes
-        for suffix in ["_RGB", "_AGL", "_CLS", "_DSM", "_DEM"]:
+        for suffix in ["_RGB", "_IMG", "_AGL", "_CLS", "_DSM", "_DEM"]:
             if stem.upper().endswith(suffix):
                 stem = stem[:len(stem) - len(suffix)]
                 break
