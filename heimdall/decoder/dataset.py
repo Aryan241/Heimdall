@@ -111,7 +111,16 @@ class RemoteSensingHeightDataset(Dataset):
         
         # Build sample pairs
         self.samples = self._build_sample_list()
-        logger.info("Loaded %d paired samples from %s (split=%s, strata=%s)", 
+        if self.cache_dir is not None:
+            # Training from cached backbone features: a tile without a cache file cannot be
+            # used (the backbone is not loaded), so drop those rather than failing mid-epoch.
+            cached = [s for s in self.samples if (self.cache_dir / f"{s[0].stem}.npz").exists()]
+            if len(cached) != len(self.samples):
+                logger.warning("%d/%d tiles have no cached features in %s — skipping them "
+                               "(run scripts/cache_backbone.py to include them).",
+                               len(self.samples) - len(cached), len(self.samples), self.cache_dir)
+            self.samples = cached
+        logger.info("Loaded %d paired samples from %s (split=%s, strata=%s)",
                     len(self.samples), dataset_dir, split, strata)
 
     def _extract_tile_id(self, stem: str) -> str:

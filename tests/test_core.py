@@ -184,3 +184,23 @@ def test_get_device_accepts_gpu_index():
         want = min(1, torch.cuda.device_count() - 1)
         assert get_device(f"cuda:{want}").index == want
         assert get_device("cuda:99").index == 0        # out of range falls back, no crash
+
+
+def test_cached_mode_skips_uncached_tiles(tmp_path):
+    """With --backbone-cache, tiles lacking a cache file must be dropped, not crash training."""
+    import numpy as np
+    from PIL import Image
+    from heimdall.decoder.dataset import RemoteSensingHeightDataset
+    for split in ("train",):
+        (tmp_path / "images" / split).mkdir(parents=True)
+        (tmp_path / "heights" / split).mkdir(parents=True)
+        for i in range(3):
+            Image.fromarray(np.zeros((64, 64, 3), np.uint8)).save(tmp_path / "images" / split / f"T{i}_RGB.png")
+            np.save(tmp_path / "heights" / split / f"T{i}_AGL.npy", np.zeros((64, 64), np.float32))
+    cache = tmp_path / "backbone" / "vit-b" / "train"
+    cache.mkdir(parents=True)
+    np.savez(cache / "T0_RGB.npz", sharp=np.zeros((64, 64), np.float16),
+             degraded=np.zeros((64, 64), np.float16), factor=2.0)
+    assert len(RemoteSensingHeightDataset(tmp_path, split="train", patch_size=64)) == 3
+    ds = RemoteSensingHeightDataset(tmp_path, split="train", patch_size=64, backbone_cache="vit-b")
+    assert len(ds) == 1 and "depth" in ds[0]

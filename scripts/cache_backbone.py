@@ -40,8 +40,8 @@ def main() -> int:
     ap.add_argument("--splits", nargs="*", default=["train", "val"])
     ap.add_argument("--model", default="vit-b")
     ap.add_argument("--device", default=None)
-    ap.add_argument("--degrade-range", nargs=2, type=float, default=[1.5, 3.0],
-                    help="Random down-sampling factors for the degraded variant (0.33 m → 0.5–1.0 m).")
+    ap.add_argument("--degrade-range", nargs=2, type=float, default=[1.5, 4.0],
+                    help="Random down-sampling factors for the degraded variant (0.33 m → 0.5–1.3 m, covering Cartosat-class sensors after the pipeline resamples them).")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
