@@ -228,6 +228,22 @@ class RemoteSensingHeightDataset(Dataset):
             depth = np.asarray(Image.fromarray(depth).resize(img_pil.size, Image.Resampling.BILINEAR))
         return depth, img_pil
 
+    def load_classes(self, img_path: Path) -> np.ndarray | None:
+        """GAMUS semantic labels for a tile, if the dataset ships a classes/<split>/ folder."""
+        tile = self._extract_tile_id(img_path.stem)
+        folder = self.dataset_dir / "classes" / self.split
+        for ext in (".png", ".tif", ".h5"):
+            p = folder / f"{tile}_CLS{ext}"
+            if p.exists():
+                if ext == ".h5":
+                    return _load_h5_array(p).astype(np.uint8)
+                if ext == ".tif":
+                    import rasterio
+                    with rasterio.open(p) as src:
+                        return src.read(1).astype(np.uint8)
+                return np.asarray(Image.open(p)).astype(np.uint8)
+        return None
+
     def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         img_path, hgt_path = self.samples[idx]
         img_pil = Image.fromarray(self._load_image(img_path))

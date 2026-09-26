@@ -174,3 +174,13 @@ def test_unreadable_input_raises_friendly_error(tmp_path):
     bad.write_text("this is not an image")
     with pytest.raises(UnreadableImageError, match="could not be read as an image"):
         ingest(bad)
+
+
+def test_get_device_accepts_gpu_index():
+    import torch
+    from heimdall.device import get_device
+    assert get_device("cpu").type == "cpu"
+    if torch.cuda.is_available():
+        want = min(1, torch.cuda.device_count() - 1)
+        assert get_device(f"cuda:{want}").index == want
+        assert get_device("cuda:99").index == 0        # out of range falls back, no crash

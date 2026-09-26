@@ -2,6 +2,8 @@
 Device detection utility — single source of truth for the entire project.
 """
 
+import logging
+
 import torch
 
 
@@ -13,8 +15,17 @@ def get_device(preferred: str | None = None) -> torch.device:
     """
     if preferred:
         preferred = preferred.lower()
-        if preferred == "cuda" and torch.cuda.is_available():
-            return torch.device("cuda")
+        if preferred.startswith("cuda") and torch.cuda.is_available():
+            # Accept "cuda" and "cuda:N" (workstations with several GPUs).
+            index = int(preferred.split(":", 1)[1]) if ":" in preferred else None
+            if index is None:
+                return torch.device("cuda")
+            if index < torch.cuda.device_count():
+                return torch.device(f"cuda:{index}")
+            logging.getLogger(__name__).warning(
+                "cuda:%d requested but only %d CUDA device(s) present — using cuda:0.",
+                index, torch.cuda.device_count())
+            return torch.device("cuda:0")
         if preferred == "mps" and torch.backends.mps.is_available():
             return torch.device("mps")
         if preferred == "cpu":

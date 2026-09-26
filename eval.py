@@ -61,7 +61,8 @@ def main() -> int:
     from heimdall.decoder.dataset import RemoteSensingHeightDataset
     from heimdall.decoder.model import load_wrapper, predict_ndsm
     from heimdall.device import get_device
-    from heimdall.eval.metrics import RunningMetrics, height_metrics, pixel_strata, scene_stratum
+    from heimdall.eval.metrics import (RunningMetrics, height_metrics, pixel_strata, scene_stratum,
+                                       strata_from_labels)
 
     device = get_device(args.device)
     ds = RemoteSensingHeightDataset(args.data_dir, split=args.split, patch_size=512)
@@ -93,6 +94,7 @@ def main() -> int:
             ref = resize_float(ref, rgb.shape[:2])
         ref[(ref < -100) | (ref > 1000)] = np.nan
 
+        labels = ds.load_classes(img_path)   # GAMUS semantic labels, when present
         pred = np.clip(predict_ndsm(wrapper, rgb, device, overlap=args.overlap, tta=args.tta), 0, None)
         if args.refine:
             from heimdall.refine import refine_ndsm
@@ -104,7 +106,8 @@ def main() -> int:
         by_scene.add(scene, pred, ref)
         by_city.add(city, pred, ref)
         baseline_zero.add("zero", np.zeros_like(ref), ref)
-        for name, m in pixel_strata(rgb, np.nan_to_num(ref)).items():
+        strata = strata_from_labels(labels) if labels is not None else pixel_strata(rgb, np.nan_to_num(ref))
+        for name, m in strata.items():
             by_class.add(name, pred, ref, m)
 
         tm = height_metrics(pred, ref)
@@ -122,6 +125,7 @@ def main() -> int:
     results = {
         "dataset": str(args.data_dir), "split": args.split, "tiles": len(samples),
         "weights": str(args.weights), "backbone": wrapper.model_key, "tta": args.tta, "refine": args.refine,
+        "pixel_classes": "ground-truth labels" if labels is not None else "RGB heuristic",
         "overall": overall.report()["all"],
         "by_landscape": by_scene.report(),
         "by_pixel_class": by_class.report(),

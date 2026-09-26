@@ -49,6 +49,17 @@ def height_metrics(pred: np.ndarray, ref: np.ndarray, mask: np.ndarray | None = 
     return out
 
 
+# GAMUS semantic labels (classes/<split>/<tile>_CLS.png)
+GAMUS_CLASSES = {0: "other", 1: "ground", 2: "low_vegetation", 3: "building", 4: "water", 5: "road", 6: "tree"}
+
+
+def strata_from_labels(labels: np.ndarray) -> dict[str, np.ndarray]:
+    """Per-pixel classes from ground-truth semantic labels (preferred over the RGB heuristic)."""
+    out = {name: labels == value for value, name in GAMUS_CLASSES.items() if value != 0}
+    out["ground"] = out["ground"] | out["road"]          # both are bare-earth level
+    return {k: v for k, v in out.items() if v.any()}
+
+
 def vegetation_mask(rgb: np.ndarray) -> np.ndarray:
     """Excess-green vegetation index on chromatic coordinates (RGB-only imagery)."""
     x = rgb.astype(np.float32) + 1e-3
