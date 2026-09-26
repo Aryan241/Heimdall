@@ -55,6 +55,9 @@ def main() -> int:
     ap.add_argument("--val-split", default="val", help="Validation split folder (val / test).")
     ap.add_argument("--val-max", type=int, default=300, help="Max validation tiles per epoch.")
     ap.add_argument("--no-augment", action="store_true")
+    ap.add_argument("--max-oom", type=int, default=40,
+                    help="Give up after this many out-of-memory events (shared GPUs).")
+    ap.add_argument("--oom-wait", type=int, default=30, help="Seconds to wait after an OOM.")
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -119,15 +122,33 @@ def main() -> int:
         model.train()
         t0 = time.time()
         running = 0.0
+        oom = steps = 0
         optimizer.zero_grad(set_to_none=True)
         pbar = tqdm(train_loader, desc=f"Epoch {epoch}/{args.epochs}", file=sys.stdout)
         for bi, batch in enumerate(pbar):
             images, heights = batch["image"].to(device), batch["height"].to(device)
             depth = batch["depth"].to(device) if "depth" in batch else None
-            with torch.autocast(device_type=device.type, enabled=use_amp):
-                out = model(images, target_height=heights, precomputed_depth=depth)
-                loss = out["loss"] / args.accumulate
-            (scaler.scale(loss) if scaler else loss).backward()
+            try:
+                with torch.autocast(device_type=device.type, enabled=use_amp):
+                    out = model(images, target_height=heights, precomputed_depth=depth)
+                    loss = out["loss"] / args.accumulate
+                (scaler.scale(loss) if scaler else loss).backward()
+            except torch.OutOfMemoryError:
+                # Shared GPU: another process may grab memory at any moment. Drop this batch,
+                # wait for it to be released and carry on rather than losing the whole run.
+                oom += 1
+                optimizer.zero_grad(set_to_none=True)
+                del images, heights, depth
+                if device.type == "cuda":
+                    torch.cuda.empty_cache()
+                if oom > args.max_oom:
+                    log.error("%d out-of-memory events — another process is using the GPU. "
+                              "Lower --batch-size/--patch-size or wait for the GPU to free up.", oom)
+                    raise
+                log.warning("CUDA OOM (%d/%d) — skipping batch and retrying in %ds",
+                            oom, args.max_oom, args.oom_wait)
+                time.sleep(args.oom_wait)
+                continue
             if (bi + 1) % args.accumulate == 0 or bi + 1 == len(train_loader):
                 if scaler:
                     scaler.unscale_(optimizer)
@@ -138,9 +159,10 @@ def main() -> int:
                     optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
             running += out["loss"].item()
+            steps += 1
             pbar.set_postfix(loss=f"{out['loss'].item():.3f}", lr=f"{optimizer.param_groups[0]['lr']:.2e}")
         scheduler.step()
-        train_loss = running / max(1, len(train_loader))
+        train_loss = running / max(1, steps)
 
         val = evaluate(model, val_loader, device) if val_loader else {}
         log.info("Epoch %d | train loss %.4f | val RMSE %.3f m  MAE %.3f m  r %.3f | %.0fs",
