@@ -55,7 +55,9 @@ CACHE_GPU_B=${CACHE_GPU_B:-2}
 GAMUS_TILES=${GAMUS_TILES:-0}      # 0 = all 5004 train + 859 val
 AHN_TILES=${AHN_TILES:-3000}
 EPOCHS=${EPOCHS:-40}
-BATCH=${BATCH:-4}                  # 8 GB cards at 512²; raise if memory allows
+PATCH=${PATCH:-256}                # 256² crops keep training inside 8 GB (see docs/TRAINING.md)
+BATCH=${BATCH:-4}                  # 4 x 256² ≈ 4.6 GB peak
+ACCUM=${ACCUM:-8}                  # effective batch 32
 LR=${LR:-3e-4}
 TAG=${TAG:-v2}
 STAGES=${STAGES:-data,cache,train,bench}
@@ -96,7 +98,8 @@ if has train; then
   $PY scripts/train_decoder.py \
       --dataset-dir data/GAMUS data/AHN \
       --model "$MODEL" --backbone-cache --gpu "$TRAIN_GPU" \
-      --epochs "$EPOCHS" --batch-size "$BATCH" --lr "$LR" --num-workers 6 \
+      --epochs "$EPOCHS" --batch-size "$BATCH" --patch-size "$PATCH" --accumulate "$ACCUM" \
+      --lr "$LR" --num-workers 6 \
       --output-dir checkpoints/decoder --tag "$TAG" 2>&1 | tee -a "$LOG_TAIL"
 fi
 

@@ -122,6 +122,12 @@ python scripts/train_decoder.py --dataset-dir /path/to/GAMUS --resume checkpoint
 
 Flip / 90° rotation / photometric augmentation, a validation split at native GSD, and best-checkpoint selection by validation RMSE are built in.
 
+## Hardware
+
+Inference needs **2.2 GB of VRAM** (Depth Anything V2 Base + head, one 512² tile) and runs on
+CPU as well, more slowly. Training the head needs ~4.6 GB at 256² crops with batch 4 — see
+[docs/TRAINING.md](docs/TRAINING.md) for the measured table.
+
 ## Tests
 
 ```bash

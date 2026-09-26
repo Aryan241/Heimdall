@@ -77,8 +77,9 @@ STAGES=cache,train,bench ./scripts/train_workstation.sh
 Rough timings on that hardware: datasets ~1 h (network-bound), caching ~20 min, training
 ~15–25 min per 10 epochs, benchmarks ~20 min.
 
-**Batch size**: 8 GB cards fit about `--batch-size 4` at 512². If you hit `CUDA out of
-memory`, halve it and raise `--accumulate` to keep the effective batch the same.
+**Batch size**: see the measured table below — on an 8 GB card use
+`--patch-size 256 --batch-size 4 --accumulate 8`. Training also survives a transient OOM
+caused by another process on a shared GPU: it drops the batch, waits and continues.
 
 **Worth doing with three GPUs**: train two backbones at once and keep the better one —
 `MODEL=vit-b TRAIN_GPU=1 TAG=v2b` alongside `MODEL=da3-mono-l TRAIN_GPU=0 TAG=mono`, then
@@ -100,13 +101,38 @@ fetcher matters.
 
 !python scripts/cache_backbone.py --dataset-dir /kaggle/working/GAMUS /kaggle/working/AHN --model vit-b
 !python scripts/train_decoder.py --dataset-dir /kaggle/working/GAMUS /kaggle/working/AHN \
-    --backbone-cache --model vit-b --epochs 30 --batch-size 8 --lr 3e-4 --num-workers 4 \
+    --backbone-cache --model vit-b --epochs 30 --patch-size 256 --batch-size 8 --accumulate 4 \
+    --lr 3e-4 --num-workers 4 \
     --output-dir /kaggle/working/checkpoints --tag v2
 ```
 
 If GAMUS is already attached as a read-only Kaggle input, point `--dataset-dir` at it and add
 `--cache-root /kaggle/working/cache` to both the caching and training commands (`/kaggle/input`
 cannot be written to).
+
+---
+
+## VRAM requirements (measured, GTX 1080 / PyTorch 2.6)
+
+Peak training memory is essentially linear in `batch × pixels`:
+**peak ≈ 30 MiB + 17.4 GiB per megapixel-batch** (R² = 1.00).
+
+| Crop | batch 1 | batch 2 | batch 4 | batch 8 |
+|---|---|---|---|---|
+| 256² | 1.2 GB | 2.3 GB | **4.6 GB** | 9.1 GB |
+| 512² | 4.6 GB | 9.1 GB | 18.2 GB | 36.5 GB |
+
+* **8 GB card (1080 / 3070)** → `--patch-size 256 --batch-size 4 --accumulate 8`
+  (effective batch 32, ~4.6 GB). Mixed precision on Ampere roughly halves this, so
+  `--batch-size 8` also fits there.
+* **16 GB (T4 / V100)** → `--patch-size 256 --batch-size 8`, or 512² at batch 2.
+* **24 GB+** → 512² at batch 4.
+* The head is fully convolutional, so training on 256² crops and running inference on
+  512² tiles is fine; only the receptive field per sample changes, not the weights.
+* The head now uses GroupNorm, so small batches behave like large ones and batch 1 works.
+
+**Inference needs 2.2 GB** (Depth Anything V2 Base + head, one 512² tile), so the deployed
+pipeline runs on any modern GPU — or on CPU, more slowly.
 
 ---
 
