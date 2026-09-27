@@ -172,7 +172,7 @@ def load_wrapper(weights: str | Path, device: torch.device, model_key: str | Non
     if model_key.startswith("da3"):
         logger.warning("This head was trained on a Depth Anything V3 metric backbone, which is nearly blind to "
                        "height in nadir imagery (LiDAR benchmark: r≈0.06). Retrain on a V2 backbone — see "
-                       "docs/KAGGLE_TRAINING.md.")
+                       "docs/TRAINING.md.")
     return wrapper
 
 

@@ -177,7 +177,7 @@ def run(cfg: PipelineConfig) -> PipelineResult:
             warn("This decoder head was trained on a Depth Anything V3 metric backbone, which is nearly "
                  "blind to height in nadir imagery (LiDAR benchmark: r≈0.06, RMSE 7.4 m vs 8.4 m for "
                  "predicting zero). Heights here are unreliable — retrain on a V2 backbone "
-                 "(docs/KAGGLE_TRAINING.md).")
+                 "(docs/TRAINING.md).")
         say("stage", stage="depth", message="Estimating height above ground")
         ndsm = predict_ndsm(wrapper, image, device, tile_size=cfg.tile_size, overlap=cfg.overlap, tta=cfg.tta,
                             progress=lambda i, n: say("progress", stage="depth", current=i, total=n))

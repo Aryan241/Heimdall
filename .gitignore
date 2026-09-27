@@ -61,3 +61,4 @@ checkpoints/decoder/*
 .pytest_cache/
 # Stray Next dev cache created when the workspace root changed
 heimdall-web/heimdall-web/
+decoder_best_kaggle.zip

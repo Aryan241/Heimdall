@@ -12,7 +12,7 @@ Heimdall converts a **single optical RGB remote-sensing image** into an elevatio
 * **Non-georeferenced input (PNG / JPG)** → **relative DSM (rDSM)**: height above local ground, in metres when the ground sample distance is known or can be estimated.
 * **Visualisation**: a web platform (Next.js + React Three Fiber) with upload, live progress, a UV-textured terrain mesh, orbit and first-person flight, true-metre height/slope readouts, distance and profile measurement, water-level simulation, and built-in **validation against reference DSM / LiDAR rasters**.
 
-The height model is a frozen **Depth Anything V2** backbone plus a trained **ASPP domain-adaptation head** that predicts per-pixel scale and shift fields mapping backbone depth to metric height above ground. *Status: the shipped checkpoint was trained on a Depth Anything V3 metric backbone which the LiDAR benchmark (§4.4) showed is nearly blind to height in nadir imagery; the head is being retrained on V2 (`docs/KAGGLE_TRAINING.md`).*
+The height model is a frozen **Depth Anything V2 Base** backbone plus a trained **multi-scale decoder** that consumes the DPT feature pyramid and predicts per-pixel scale and shift fields mapping backbone depth to metric height above ground. Trained on 9 004 tiles (GAMUS + Dutch AHN LiDAR at two ground resolutions); scored against airborne LiDAR at eight held-out Dutch sites at **5.68 m RMSE / r = 0.66**, versus 8.37 m for predicting zero and 7.44 m for the previous checkpoint (§4.4).
 
 ---
 
@@ -136,28 +136,62 @@ Also written: an error map, a scatter plot, an error histogram, and per-class ta
 
 ### 4.4 Results — independent LiDAR benchmark (Netherlands, AHN)
 
-`scripts/benchmark_ahn.py` downloads open Dutch aerial orthophotos and AHN LiDAR
-(DSM and DTM, 0.5 m), runs the production pipeline and scores predicted height above
-ground against `AHN DSM − AHN DTM`. None of the sites were used for training. Measured
-with the **shipped (GAMUS / DA3-metric) head**, 400 m sites, 0.25 m imagery:
+`scripts/benchmark_ahn.py` downloads open Dutch aerial orthophotos and AHN LiDAR (DSM and
+DTM, 0.5 m), runs the production pipeline and scores predicted height above ground against
+`AHN DSM − AHN DTM`. This is a genuinely independent test: a different country, sensor and
+vendor from the GAMUS training data, and every site is excluded by a 3 km buffer from the
+AHN tiles used for training (`scripts/build_ahn_dataset.py`). 400 m sites, 0.25 m imagery.
 
-| Site | Landscape | nDSM RMSE (m) | MAE (m) | Bias (m) | r | Predict-zero RMSE (m) |
+| Site | Landscape | RMSE (m) | MAE (m) | Bias (m) | r | Predict-zero RMSE (m) |
 |---|---|---|---|---|---|---|
-| amsterdam_centre | dense historic urban | 13.06 | 9.16 | −8.65 | −0.08 | 13.32 |
-| rotterdam_centre | high-rise urban | 21.59 | 12.55 | −11.47 | 0.24 | 22.92 |
-| utrecht_suburb | suburban residential | 3.57 | 2.45 | −1.44 | 0.44 | 4.75 |
-| rotterdam_port | industrial | 8.96 | 5.41 | −4.93 | 0.71 | 11.01 |
-| westland_greenhouses | greenhouses | 2.20 | 1.71 | +0.82 | 0.72 | 3.90 |
-| veluwe_forest | forest | 3.02 | 1.64 | −1.12 | 0.73 | 4.25 |
-| flevoland_farmland | sparse rural | 2.39 | 1.45 | +1.22 | −0.08 | 1.43 |
-| valkenburg_hills | hilly town | 4.77 | 2.68 | −2.10 | 0.34 | 5.38 |
-| **mean** | | **7.44** | **4.63** | — | **0.38** | **8.37** |
+| amsterdam_centre | dense historic urban | 8.52 | 5.74 | −5.28 | 0.86 | 13.32 |
+| rotterdam_centre | high-rise urban | 16.94 | 8.90 | −6.55 | 0.61 | 22.92 |
+| utrecht_suburb | suburban residential | 2.49 | 1.56 | −0.91 | 0.78 | 4.75 |
+| rotterdam_port | industrial | 8.10 | 5.02 | −4.72 | 0.84 | 11.01 |
+| westland_greenhouses | greenhouses | 2.22 | 1.64 | −0.54 | 0.63 | 3.90 |
+| veluwe_forest | forest | 2.26 | 1.13 | −0.41 | 0.79 | 4.25 |
+| flevoland_farmland | sparse rural | 1.53 | 0.23 | +0.03 | 0.07 | 1.43 |
+| valkenburg_hills | hilly town | 3.41 | 1.85 | −1.03 | 0.71 | 5.38 |
+| **mean** | | **5.68** | **3.26** | — | **0.662** | **8.37** |
 
-**Interpretation.** The shipped head is barely better than predicting 0 m everywhere
-(7.44 m vs 8.37 m RMSE) and strongly under-predicts tall structures. Object-based
-regularisation changes the metrics by < 0.01 m — it improves appearance, not accuracy.
+**Against the previous (shipped) head**, same sites, same script:
 
-**Root cause (measured).** Correlation between each frozen backbone's output and LiDAR
+| | mean RMSE | mean MAE | mean r |
+|---|---|---|---|
+| Shipped head (DA3-metric backbone) | 7.44 m | 4.63 m | 0.377 |
+| **Retrained head (DA2 + multiscale decoder)** | **5.68 m** | **3.26 m** | **0.662** |
+| Predict 0 m everywhere | 8.37 m | — | — |
+
+Seven of the eight sites improved; the greenhouses are unchanged (2.20 → 2.22 m), which is
+expected — they are near-flat structures where there was little error to remove. The
+correlation gain is the more meaningful result: 0.377 → 0.662 means the model now tracks the
+*shape* of the built environment, not just its average height. Amsterdam's historic centre
+moves from r = −0.08 (anti-correlated, i.e. worse than useless) to 0.86.
+
+The model beats the predict-zero baseline at seven of eight sites. The exception is
+Flevoland farmland (1.53 m vs 1.43 m), which is reclaimed polder with almost no
+above-ground structure — predicting zero there is close to optimal and the model's small
+positive bias costs it slightly.
+
+Object-based regularisation ("refined") again changes the metrics by < 0.03 m. It is kept
+because it improves the appearance of roofs in the 3D view, and this confirms it does so
+without distorting the heights.
+
+**Where the remaining error is.** Two places, consistently across both benchmarks:
+
+* **Tall buildings.** Rotterdam's high-rise core is the worst site (16.94 m) and carries a
+  −6.55 m bias; on GAMUS, building pixels score 7.27 m RMSE with −2.47 m bias. A single view
+  gives no parallax, so a 60 m tower and a 30 m one differ mainly in shadow length and
+  perspective cues that an orthomosaic has deliberately removed.
+* **Tree canopy.** GAMUS tree pixels are the worst class (6.85 m RMSE, −3.98 m bias, NMAD
+  4.73 m). Canopy height varies over metres within a crown, and the backbone sees texture
+  rather than structure.
+
+Both are under-predictions, which is the safe direction for most downstream uses (a flood or
+line-of-sight model that under-calls a building is conservative) but is the obvious target
+for further work: height-weighted loss terms, or shadow-length features as an explicit input.
+
+**Root cause of the original failure (measured).** Correlation between each frozen backbone's output and LiDAR
 height, same eight sites, 0.33 m tiles:
 
 | Backbone | Type | Mean r | Median r | s/tile (MPS) |
@@ -183,9 +217,10 @@ trained against it — the head is fitted to one backbone's output distribution.
 (flat farmland, water-dominated port) have almost no above-ground structure, so their
 correlations are noise; the median column is the more meaningful summary.
 
-The pipeline default is therefore Depth Anything V2 Base, and the head must be retrained on
-it — see `docs/KAGGLE_TRAINING.md`. The benchmark is re-run after training to quantify the
-improvement.
+The pipeline default is therefore Depth Anything V2 Base, and the head was retrained against
+it from scratch (`docs/TRAINING.md`) — a head is fitted to one backbone's output
+distribution, so the old weights could not be fine-tuned. The table at the top of this
+section is that retrained model, measured by re-running the same benchmark.
 
 ### 4.5 Qualitative end-to-end run (bundled demo)
 Georeferenced drone orthomosaic, Kathmandu (EPSG:32645, 1.25 cm GSD, 7649 × 8154 px):

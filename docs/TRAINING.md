@@ -86,29 +86,72 @@ caused by another process on a shared GPU: it drops the batch, waits and continu
 compare their `benchmark_ahn` tables. They tie in the frozen-backbone test, but which one
 trains better on GAMUS is an open question worth settling with evidence.
 
-## Path B — Kaggle (if the workstation is unavailable)
+## Path B — Kaggle (the reference run)
 
-GPU T4 ×2, Internet **on**. `/kaggle/working` is capped at 20 GB, which is why the compact
-fetcher matters.
+This is the run that produced the shipped checkpoint, so it is known-good rather than
+illustrative. Notebook settings: **Accelerator GPU T4 ×2, Internet on**. No Kaggle dataset
+needs to be attached — GAMUS comes from Hugging Face and AHN from PDOK. Paste as one
+`%%bash` cell, then *Save Version → Save & Run All*; it takes ~4.7 h and fits the 12 h limit.
 
-```python
-!git clone https://github.com/Aryan241/Heimdall.git /kaggle/working/heimdall
-%cd /kaggle/working/heimdall
-!pip install -q rasterio scikit-image trimesh addict einops omegaconf timm "transformers>=4.44,<4.46" ultralytics
+```bash
+%%bash
+set -u
+export CUDA_DEVICE_ORDER=PCI_BUS_ID PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+cd /kaggle/working
+[ -d heimdall/.git ] || git clone -q https://github.com/Aryan241/Heimdall.git heimdall
+cd heimdall || exit 1
+pip install -q rasterio scikit-image trimesh
+mkdir -p /kaggle/temp/data /kaggle/working/checkpoints
 
-!python scripts/fetch_gamus.py --out /kaggle/working/GAMUS --splits train val --tiles 4000
-!python scripts/build_ahn_dataset.py --out /kaggle/working/AHN --train 2000 --val 200 --workers 16
+python scripts/fetch_gamus.py --out /kaggle/temp/data/GAMUS --splits train val --workers 6
+python scripts/fetch_gamus.py --out /kaggle/temp/data/GAMUS --splits test --tiles 500 --workers 6
+python scripts/build_ahn_dataset.py --out /kaggle/temp/data/AHN     --train 2000 --val 200 --workers 12
+python scripts/build_ahn_dataset.py --out /kaggle/temp/data/AHN_1m  --train 800  --val 80 --gsd 1.0 \
+       --workers 12 --seed 11
 
-!python scripts/cache_backbone.py --dataset-dir /kaggle/working/GAMUS /kaggle/working/AHN --model vit-b
-!python scripts/train_decoder.py --dataset-dir /kaggle/working/GAMUS /kaggle/working/AHN \
-    --backbone-cache --model vit-b --epochs 30 --patch-size 256 --batch-size 8 --accumulate 4 \
-    --lr 3e-4 --num-workers 4 \
-    --output-dir /kaggle/working/checkpoints --tag v2
+python scripts/train_decoder.py \
+    --dataset-dir /kaggle/temp/data/GAMUS /kaggle/temp/data/AHN /kaggle/temp/data/AHN_1m \
+    --model vit-b --head multiscale --gpu 0 \
+    --epochs 30 --batch-size 12 --patch-size 256 --accumulate 3 \
+    --lr 3e-4 --num-workers 2 --val-max 200 \
+    --output-dir /kaggle/working/checkpoints --tag kaggle
+
+python eval.py --weights /kaggle/working/checkpoints/decoder_best_kaggle.pth \
+    --data-dir /kaggle/temp/data/GAMUS --split test --device cuda:0 \
+    --output /kaggle/working/gamus_test.json --save-examples 8
 ```
 
-If GAMUS is already attached as a read-only Kaggle input, point `--dataset-dir` at it and add
-`--cache-root /kaggle/working/cache` to both the caching and training commands (`/kaggle/input`
-cannot be written to).
+Notes that matter on Kaggle specifically:
+
+* Datasets go in `/kaggle/temp` (not `/kaggle/working`, capped at 20 GB and persisted into the
+  saved version — you do not want 12 GB of tiles in the output).
+* Backbone caching is skipped deliberately. It trades disk for time, and on a T4 the forward
+  pass through a frozen ViT-B is cheap enough (~7 min/epoch for 9 k tiles) that the cache
+  would cost more in download and disk than it saves.
+* Add `curl` calls to an [ntfy](https://ntfy.sh) topic around each stage if you want to be
+  told when it finishes or fails rather than watching the tab.
+
+### What the reference run produced
+
+30 epochs over 9 004 tiles (GAMUS train + val, AHN 0.33 m, AHN 1 m), ~7 min/epoch:
+
+| | val RMSE | MAE | r |
+|---|---|---|---|
+| Epoch 1 | 5.26 m | 2.52 m | 0.58 |
+| Epoch 25 (**selected**) | **3.850 m** | 1.934 m | 0.792 |
+| Epoch 30 (final) | 3.902 m | 1.934 m | 0.795 |
+
+The best checkpoint beats the last, which is why selection is on validation RMSE. Validation
+moved by 0.01 m over the final two epochs, so the schedule had converged; training longer is
+not where the remaining error is.
+
+Held-out GAMUS test (500-tile random subset, no TTA, no refinement) — see
+`outputs/gamus_test.json` for the full breakdown:
+
+| | RMSE | MAE | bias | NMAD | r |
+|---|---|---|---|---|---|
+| Heimdall | **5.42 m** | **2.46 m** | −1.48 m | 0.94 m | **0.751** |
+| predict zero | 8.67 m | 4.39 m | −4.33 m | 0.50 m | — |
 
 ---
 

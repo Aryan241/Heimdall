@@ -93,10 +93,11 @@ Outputs (`<name>_*`): `dsm.tif` / `rdsm.tif`, `ndsm.tif`, `dtm.tif`, `height16.p
 
 ## Validation and benchmarking
 
-> **Current accuracy status.** Benchmarked against AHN LiDAR over 8 Dutch landscapes, the
-> *shipped* head scores 7.44 m mean nDSM RMSE versus 8.37 m for predicting zero — it was
-> trained on a backbone that cannot see height in nadir imagery. Retraining on Depth
-> Anything V2 is required: see [docs/KAGGLE_TRAINING.md](docs/KAGGLE_TRAINING.md).
+> **Measured accuracy.** Against airborne LiDAR over 8 held-out Dutch landscapes
+> (`scripts/benchmark_ahn.py`): **5.68 m** mean nDSM RMSE, **r = 0.66**, versus 8.37 m for
+> predicting zero everywhere. On the held-out GAMUS test split: **5.42 m** RMSE, **2.46 m**
+> MAE, **r = 0.75**, versus an 8.67 m predict-zero baseline. Training recipe and the full
+> breakdown: [docs/TRAINING.md](docs/TRAINING.md).
 
 ```bash
 # Independent benchmark against airborne LiDAR (open Dutch data, downloads automatically)
@@ -153,6 +154,6 @@ tests/                  unit tests
 
 ## Known limitations
 
-* The shipped head is **not accurate yet** (see the benchmark note above); retrain per `docs/KAGGLE_TRAINING.md`. Always measure with `scripts/benchmark_ahn.py` / `eval.py` / `validate.py` before quoting numbers.
+* Tall buildings and tree canopy are **under-predicted** (Rotterdam high-rise: 16.9 m RMSE, −6.6 m bias; GAMUS tree pixels: 6.9 m RMSE, −4.0 m bias). A single nadir view carries no parallax, so absolute height for tall structures is inferred rather than measured. Always re-measure with `scripts/benchmark_ahn.py` / `eval.py` / `validate.py` before quoting numbers.
 * Absolute accuracy of the terrain datum is bounded by the coarse DEM (Copernicus GLO-30 is EGM2008-referenced; reference LiDAR is often ellipsoidal, which is why the validator reports an offset-removed score).
 * Automatic DEM download needs internet access; offline, supply `--reference-dem` or GCPs.

@@ -6,8 +6,8 @@
   "product_description": "Absolute DSM (metres, orthometric; terrain datum + predicted above-ground height)",
   "units": "m",
   "mode": "head",
-  "model": "da3-metric-l",
-  "weights": "decoder_best_all.pth",
+  "model": "vit-b",
+  "weights": "decoder_best.pth",
   "native_shape": [
     8154,
     7649
@@ -45,12 +45,12 @@
   "calibration": {
     "refinement": {
       "method": "segment-wise planar regularisation",
-      "segments": 272,
-      "built_surfaces": 114,
-      "pitched": 24,
-      "vegetation_objects": 13,
-      "bimodal_splits": 32,
-      "merged_pairs": 45,
+      "segments": 263,
+      "built_surfaces": 133,
+      "pitched": 3,
+      "vegetation_objects": 27,
+      "bimodal_splits": 5,
+      "merged_pairs": 118,
       "vehicles": 5,
       "segments_grounded_by_vehicles": 2
     },
@@ -68,21 +68,21 @@
   "stats": {
     "surface": {
       "min": 1307.5343017578125,
-      "max": 1317.17529296875,
-      "mean": 1309.6402587890625,
-      "std": 1.5804551839828491,
-      "p02": 1307.84326171875,
-      "p50": 1309.04296875,
-      "p98": 1313.6436767578125
+      "max": 1311.927978515625,
+      "mean": 1309.6346435546875,
+      "std": 0.8654923439025879,
+      "p02": 1308.12890625,
+      "p50": 1309.7957763671875,
+      "p98": 1311.02392578125
     },
     "ndsm": {
       "min": 0.0,
-      "max": 9.388132095336914,
-      "mean": 1.2520395517349243,
-      "std": 1.5563889741897583,
+      "max": 4.303528308868408,
+      "mean": 1.2482551336288452,
+      "std": 1.0931116342544556,
       "p02": 0.0,
-      "p50": 0.6570113897323608,
-      "p98": 5.161219596862793
+      "p50": 1.169389247894287,
+      "p98": 3.264336347579956
     },
     "dtm": {
       "min": 1307.304931640625,
@@ -93,11 +93,11 @@
       "p50": 1307.7928466796875,
       "p98": 1308.08056640625
     },
-    "built_fraction": 0.18773295391139383
+    "built_fraction": 0.20767771454078787
   },
   "height_png_scale": {
     "offset_m": 1307.5343017578125,
-    "scale_m": 0.00014711209599355306
+    "scale_m": 6.704320985446708e-05
   },
   "mesh": {
     "grid_shape": [
@@ -106,7 +106,7 @@
     ],
     "width_m": 95.7,
     "depth_m": 101.97,
-    "height_offset": 1307.771240234375,
+    "height_offset": 1308.076904296875,
     "grid_layers": [
       "surface",
       "ndsm",
@@ -130,18 +130,18 @@
   },
   "warnings": [],
   "timings_s": {
-    "ingest": 0.61,
-    "depth": 14.14,
-    "calibration": 0.1,
-    "outputs": 1.53,
-    "mesh": 0.98,
-    "total": 17.86
+    "ingest": 0.65,
+    "depth": 7.74,
+    "calibration": 0.06,
+    "outputs": 1.44,
+    "mesh": 0.93,
+    "total": 11.31
   },
   "config": {
     "input": "uploaded_image_1789657102996.tif",
     "output_dir": "demo",
     "name": "demo",
-    "weights": "decoder_best_all.pth",
+    "weights": "decoder_best.pth",
     "model_key": null,
     "device": null,
     "reference_dem": null,
