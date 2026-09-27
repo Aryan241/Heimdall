@@ -209,7 +209,8 @@ other change is needed. Then refresh the numbers and the demo:
 python scripts/benchmark_ahn.py --out outputs/benchmark_ahn     # paste into PROJECT_REPORT.md §4.4
 python eval.py --weights checkpoints/decoder/decoder_best.pth --data-dir data/GAMUS --split test \
                --output outputs/gamus_test.json
-python infer.py -i data/uploaded_image_1789657102996.tif -o heimdall-web/public/demo --name demo --tta
+python scripts/build_demo_site.py --site utrecht_suburb --size 600   # and veluwe_forest, valkenburg_hills
+python scripts/publish_benchmarks.py                                 # refresh the Accuracy tab
 ```
 
 ## Tuning notes

@@ -7,7 +7,8 @@
 #   1. install   copy the checkpoint to checkpoints/decoder/decoder_best.pth (picked up automatically)
 #   2. tests     unit tests, so a broken checkpoint can't silently ship
 #   3. bench     LiDAR benchmark over 8 held-out landscapes -> outputs/benchmark_ahn/results.md
-#   4. demo      regenerate the bundled web demo scene with the new model
+#   4. demo      rebuild the three bundled LiDAR-comparison scenes with the new model
+#                and refresh the Accuracy tab's data
 #   5. report    print the table to paste into PROJECT_REPORT.md section 4.4
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -45,9 +46,11 @@ if has bench; then
 fi
 
 if has demo; then
-  say "4/5 Regenerating the web demo scene"
-  $PY infer.py -i data/uploaded_image_1789657102996.tif -o heimdall-web/public/demo \
-      --name demo --tta --quiet-events 2>&1 | tail -4
+  say "4/5 Rebuilding the bundled comparison scenes and the Accuracy tab data"
+  for site in utrecht_suburb veluwe_forest valkenburg_hills; do
+    $PY scripts/build_demo_site.py --site "$site" --size 600 2>&1 | tail -2
+  done
+  $PY scripts/publish_benchmarks.py
 fi
 
 say "5/5 Numbers for PROJECT_REPORT.md section 4.4"
@@ -63,5 +66,5 @@ print(f"\nGAMUS test ({r['tiles']} tiles): RMSE {o['rmse']:.2f} m  MAE {o['mae']
 EOF
 
 say "Done. Commit with:"
-echo "  git add -f checkpoints/decoder/decoder_best.pth heimdall-web/public/demo outputs/benchmark_ahn/results.md"
+echo "  git add -f checkpoints/decoder/decoder_best.pth heimdall-web/public outputs/benchmark_ahn/results.md"
 echo "  git commit -m 'Trained head: <numbers>' && git push"
