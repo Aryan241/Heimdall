@@ -1,0 +1,209 @@
+{
+  "generated": "2026-09-28",
+  "model": {
+    "backbone": "Depth Anything V2 Base (frozen)",
+    "head": "multi-scale DPT-pyramid decoder",
+    "trained_on": "9 004 tiles \u2014 GAMUS + Dutch AHN LiDAR at 0.33 m and 1 m",
+    "val_rmse": 3.8503754247302635
+  },
+  "lidar_sites": [
+    {
+      "site": "flevoland_farmland",
+      "landscape": "sparse rural",
+      "rmse": 1.5334193360112771,
+      "mae": 0.23379467021536474,
+      "bias": 0.028407778894025144,
+      "pearson_r": 0.06867277045388696,
+      "predict_zero_rmse": null
+    },
+    {
+      "site": "westland_greenhouses",
+      "landscape": "greenhouses",
+      "rmse": 2.2227386028166576,
+      "mae": 1.6442143771079203,
+      "bias": -0.5392613571970274,
+      "pearson_r": 0.6303295947992316,
+      "predict_zero_rmse": null
+    },
+    {
+      "site": "veluwe_forest",
+      "landscape": "forest",
+      "rmse": 2.2634930990855198,
+      "mae": 1.1328840255035504,
+      "bias": -0.4085792179678568,
+      "pearson_r": 0.7909243436972769,
+      "predict_zero_rmse": null
+    },
+    {
+      "site": "utrecht_suburb",
+      "landscape": "suburban residential",
+      "rmse": 2.485763230476065,
+      "mae": 1.5602408391992528,
+      "bias": -0.9087951243392034,
+      "pearson_r": 0.7820897248128108,
+      "predict_zero_rmse": null
+    },
+    {
+      "site": "valkenburg_hills",
+      "landscape": "hilly town",
+      "rmse": 3.412026073840391,
+      "mae": 1.8502032521517475,
+      "bias": -1.0288484963561404,
+      "pearson_r": 0.7091950489449371,
+      "predict_zero_rmse": null
+    },
+    {
+      "site": "rotterdam_port",
+      "landscape": "industrial",
+      "rmse": 8.09700064162895,
+      "mae": 5.020485706418544,
+      "bias": -4.721480206824911,
+      "pearson_r": 0.8364766271886805,
+      "predict_zero_rmse": null
+    },
+    {
+      "site": "amsterdam_centre",
+      "landscape": "dense historic urban",
+      "rmse": 8.51730955098458,
+      "mae": 5.738200221666788,
+      "bias": -5.2823230190360135,
+      "pearson_r": 0.8621735804873882,
+      "predict_zero_rmse": null
+    },
+    {
+      "site": "rotterdam_centre",
+      "landscape": "high-rise urban",
+      "rmse": 16.941966189045196,
+      "mae": 8.903088999028624,
+      "bias": -6.547702486951711,
+      "pearson_r": 0.6128702639698573,
+      "predict_zero_rmse": null
+    }
+  ],
+  "by_gsd": [
+    {
+      "gsd": 0.25,
+      "sites": 8,
+      "rmse": 5.6842145904860795,
+      "mae": 3.260389011411474,
+      "pearson_r": 0.6615914942942587,
+      "predict_zero_rmse": null
+    },
+    {
+      "gsd": 0.5,
+      "sites": 8,
+      "rmse": 5.765623533825771,
+      "mae": 3.306042941463002,
+      "pearson_r": 0.6518079865088966,
+      "predict_zero_rmse": null
+    },
+    {
+      "gsd": 1.0,
+      "sites": 8,
+      "rmse": 5.944333475085752,
+      "mae": 3.403253970203597,
+      "pearson_r": 0.6340691190506794,
+      "predict_zero_rmse": null
+    },
+    {
+      "gsd": 2.0,
+      "sites": 8,
+      "rmse": 6.566182521418032,
+      "mae": 3.876135269449228,
+      "pearson_r": 0.6581451008846927,
+      "predict_zero_rmse": null
+    }
+  ],
+  "gamus_test": {
+    "tiles": 500,
+    "overall": {
+      "n": 100000000,
+      "rmse": 5.419118754321409,
+      "mae": 2.457491341765708,
+      "bias": -1.4758204484960071,
+      "median_abs": 0.6381964683532715,
+      "nmad": 0.9430580957653931,
+      "le90": 7.054929733276367,
+      "rmse_debiased": 5.21428826180899,
+      "pearson_r": 0.751381963556733,
+      "r2": 0.47925678401896676,
+      "delta1": 0.24515663018762246,
+      "delta2": 0.43621045789073676,
+      "delta3": 0.5777069317284861,
+      "samples": 500
+    },
+    "predict_zero": {
+      "n": 100000000,
+      "rmse": 8.666092595479679,
+      "mae": 4.3891817576718255,
+      "bias": -4.325165310645056,
+      "nmad": 0.5027121062418446,
+      "le90": 12.91132640838623,
+      "samples": 500
+    },
+    "by_landscape": {
+      "forested": {
+        "rmse": 4.5532085406188125,
+        "mae": 2.7017910748500173,
+        "pearson_r": 0.6289373574250722
+      },
+      "mixed": {
+        "rmse": 2.165729069317389,
+        "mae": 0.6975183790272225,
+        "pearson_r": 0.679258843670592
+      },
+      "sparse": {
+        "rmse": 1.1348694711806167,
+        "mae": 0.362870228043869,
+        "pearson_r": 0.3665026111806453
+      },
+      "urban": {
+        "rmse": 5.716026723399863,
+        "mae": 2.6975671475022818,
+        "pearson_r": 0.7422137927447753
+      }
+    },
+    "by_pixel_class": {
+      "building": {
+        "rmse": 7.271390290273929,
+        "mae": 3.539144283986022,
+        "bias": -2.4747343586660966
+      },
+      "ground": {
+        "rmse": 2.238571575507536,
+        "mae": 0.80003356466259,
+        "bias": -0.061371335676985425
+      },
+      "low_vegetation": {
+        "rmse": 1.7120038229512715,
+        "mae": 0.7505739037984198,
+        "bias": 0.35637620269355436
+      },
+      "road": {
+        "rmse": 2.340945898380209,
+        "mae": 0.864260690273369,
+        "bias": -0.22993514530798156
+      },
+      "tree": {
+        "rmse": 6.851537950185237,
+        "mae": 5.009419182331031,
+        "bias": -3.978941140396807
+      },
+      "water": {
+        "rmse": 2.31490070142298,
+        "mae": 1.1172033211270198,
+        "bias": 0.9068934917444518
+      }
+    }
+  },
+  "site_maps": {
+    "amsterdam_centre": "/benchmark/amsterdam_centre.png",
+    "flevoland_farmland": "/benchmark/flevoland_farmland.png",
+    "rotterdam_centre": "/benchmark/rotterdam_centre.png",
+    "rotterdam_port": "/benchmark/rotterdam_port.png",
+    "utrecht_suburb": "/benchmark/utrecht_suburb.png",
+    "valkenburg_hills": "/benchmark/valkenburg_hills.png",
+    "veluwe_forest": "/benchmark/veluwe_forest.png",
+    "westland_greenhouses": "/benchmark/westland_greenhouses.png"
+  }
+}

@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import AccuracyPanel from '@/components/AccuracyPanel';
 import ValidationPanel from '@/components/ValidationPanel';
 import { fmt, loadGrid, type TerrainGrid } from '@/lib/terrain';
 import type { JobSummary, PipelineEvent, Scene, SceneMeta } from '@/lib/types';
@@ -58,7 +59,7 @@ export default function Home() {
   const [scene, setScene] = useState<Scene | null>(null);
   const [grid, setGrid] = useState<TerrainGrid | null>(null);
   const [loadError, setLoadError] = useState('');
-  const [tab, setTab] = useState<'3d' | 'maps' | 'report'>('3d');
+  const [tab, setTab] = useState<'3d' | 'maps' | 'accuracy' | 'report'>('3d');
   const [jobs, setJobs] = useState<JobSummary[]>([]);
 
   const [file, setFile] = useState<File | null>(null);
@@ -461,15 +462,16 @@ export default function Home() {
 
         <section className="stage-area">
           <div className="tabs">
-            {(['3d', 'maps', 'report'] as const).map((t) => (
+            {(['3d', 'maps', 'accuracy', 'report'] as const).map((t) => (
               <button key={t} className={`tab ${tab === t ? 'tab--on' : ''}`} onClick={() => setTab(t)}>
-                {{ '3d': '3D flythrough', maps: '2D maps', report: 'Metadata' }[t]}
+                {{ '3d': '3D flythrough', maps: '2D maps', accuracy: 'Accuracy', report: 'Metadata' }[t]}
               </button>
             ))}
           </div>
           <div className="tab-body">
-            {loadError && <div className="viewer-empty">Could not load scene: {loadError}</div>}
-            {!loadError && !scene && <div className="viewer-empty">Loading…</div>}
+            {tab === 'accuracy' && <AccuracyPanel />}
+            {tab !== 'accuracy' && loadError && <div className="viewer-empty">Could not load scene: {loadError}</div>}
+            {tab !== 'accuracy' && !loadError && !scene && <div className="viewer-empty">Loading…</div>}
             {scene && tab === '3d' && (grid
               ? <TerrainViewer key={scene.id} scene={scene} grid={grid} />
               : <div className="viewer-empty">This result has no mesh.</div>)}

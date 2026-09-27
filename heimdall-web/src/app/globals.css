@@ -241,3 +241,19 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
   .viewer-legend, .viewer-compass, .viewer-scalebar { display: none; }
   .header { flex-direction: column; align-items: flex-start; padding: 0.75rem 1rem; }
 }
+
+/* ── Accuracy tab ─────────────────────────────────────────────────────── */
+.accuracy { display: flex; flex-direction: column; gap: 14px; padding: 14px; overflow-y: auto; height: 100%; }
+.accuracy .panel { margin: 0; }
+.headline-metrics {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px; margin: 12px 0;
+}
+.headline-metrics > div {
+  background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px;
+}
+.headline-metrics strong { font-size: 1.35rem; font-variant-numeric: tabular-nums; color: var(--green); }
+.headline-metrics span { font-size: 11.5px; color: var(--text-2); line-height: 1.35; }
+.metrics-table tr.row--on { background: rgba(34, 211, 238, 0.10); }
+.metrics-table tbody tr:hover { background: rgba(255, 255, 255, 0.035); }
