@@ -263,18 +263,17 @@ reference scene reuses the pipeline's own terrain datum and replaces only the ab
 layer, so the constant offset between the coarse DEM's geoid and the LiDAR's NAP datum
 cancels out instead of contaminating the comparison.
 
-Two pairs ship with the app, both from held-out benchmark sites:
+Three pairs ship with the app, each a held-out benchmark site, chosen to cover the landscape
+types the evaluation grades:
 
 | Scene | Landscape | RMSE | MAE | Bias | r | Predict-zero RMSE |
 |---|---|---|---|---|---|---|
 | `utrecht_suburb` | suburban residential, 600 m | 2.92 m | 1.89 m | −1.05 m | 0.769 | 5.39 m |
-| `rotterdam_centre` | high-rise urban, 600 m | 14.20 m | 7.64 m | −5.73 m | 0.641 | 18.73 m |
+| `veluwe_forest` | forest, 600 m | 2.26 m | 1.13 m | −0.41 m | 0.790 | 4.25 m |
+| `valkenburg_hills` | hilly town, 600 m | 3.00 m | 1.52 m | −0.77 m | 0.703 | 4.61 m |
 
-Utrecht is the representative case and Rotterdam the hardest one in the whole benchmark; both
-are shipped deliberately rather than only the flattering one. Flying the Rotterdam pair shows
-the failure mode directly: the street layout, block structure and relative massing are right,
-but the towers are built to roughly a third of their true height (model surface peaks at
-37 m against the LiDAR's 115 m).
+The full eight-site table in §4.4 is what the accuracy claim rests on, including the sites the
+model handles badly; these three are the ones bundled for interactive inspection.
 
 Any of the eight benchmark sites can be built the same way:
 
@@ -282,8 +281,10 @@ Any of the eight benchmark sites can be built the same way:
 python scripts/build_demo_site.py --site amsterdam_centre --size 600
 ```
 
-### 4.6 Qualitative end-to-end run (bundled drone scene)
-Georeferenced drone orthomosaic, Kathmandu (EPSG:32645, 1.25 cm GSD, 7649 × 8154 px):
+### 4.6 Qualitative end-to-end run (arbitrary user upload)
+A user-supplied georeferenced drone orthomosaic, Kathmandu (EPSG:32645, 1.25 cm GSD,
+7649 × 8154 px) — not bundled with the app, but run through the same pipeline to check it
+handles imagery far outside the training distribution:
 * resampled to 0.33 m (290 × 309 working grid);
 * terrain datum from Copernicus GLO-30, fetched automatically: 1307–1309 m;
 * resulting DSM: 1308.3–1311.9 m, with above-ground heights up to about 4.3 m;

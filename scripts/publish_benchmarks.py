@@ -33,7 +33,8 @@ def _sites(rows: list, gsd: float = 0.25, variant: str = "raw") -> list[dict]:
         if r.get("gsd") != gsd or r.get("variant") != variant:
             continue
         o = (r.get("ndsm") or {}).get("overall") or {}
-        base = (r.get("ndsm") or {}).get("baselines", {}).get("predict_zero", {})
+        nd = r.get("ndsm") or {}
+        base = nd.get("zero_baseline") or nd.get("baselines", {}).get("predict_zero", {})
         out.append({
             "site": r["site"], "landscape": r.get("kind"),
             "rmse": o.get("rmse"), "mae": o.get("mae"), "bias": o.get("bias"),
@@ -51,7 +52,8 @@ def _by_gsd(rows: list, variant: str = "raw") -> list[dict]:
         vals = [v for v in vals if v.get("rmse") is not None]
         if not vals:
             continue
-        zero = [((r.get("ndsm") or {}).get("baselines", {}).get("predict_zero", {})).get("rmse")
+        zero = [((r.get("ndsm") or {}).get("zero_baseline")
+                 or (r.get("ndsm") or {}).get("baselines", {}).get("predict_zero", {})).get("rmse")
                 for r in sel]
         zero = [z for z in zero if z is not None]
         out.append({"gsd": g, "sites": len(vals),

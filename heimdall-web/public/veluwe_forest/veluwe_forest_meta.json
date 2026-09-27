@@ -1,13 +1,13 @@
 {
   "version": 2,
-  "input": "AHN airborne LiDAR",
+  "input": "ortho_0.25m.tif",
   "kind": "georeferenced",
   "product": "absolute_dsm",
-  "product_description": "Reference surface measured by airborne LiDAR (AHN, 0.5 m), resampled to the model's working grid.",
+  "product_description": "Absolute DSM (metres, orthometric; terrain datum + predicted above-ground height)",
   "units": "m",
-  "mode": "reference",
-  "model": null,
-  "weights": null,
+  "mode": "head",
+  "model": "vit-b",
+  "weights": "decoder_best.pth",
   "native_shape": [
     2400,
     2400
@@ -26,32 +26,32 @@
   "working_transform": [
     0.33003300330033003,
     0.0,
-    92400.0,
+    187500.0,
     0.0,
     -0.33003300330033003,
-    437600.0
+    452600.0
   ],
   "center_latlon": [
-    51.920690358184416,
-    4.481577016913777
+    52.05802904935768,
+    5.865457506216048
   ],
   "bounds": [
-    92400.0,
-    437000.0,
-    93000.0,
-    437600.0
+    187500.0,
+    452000.0,
+    188100.0,
+    452600.0
   ],
   "calibration": {
     "refinement": {
       "method": "segment-wise planar regularisation",
-      "segments": 2253,
-      "built_surfaces": 1183,
-      "pitched": 274,
-      "vegetation_objects": 358,
-      "bimodal_splits": 743,
-      "merged_pairs": 289,
-      "vehicles": 7,
-      "segments_grounded_by_vehicles": 6
+      "segments": 775,
+      "built_surfaces": 1,
+      "pitched": 0,
+      "vegetation_objects": 384,
+      "bimodal_splits": 126,
+      "merged_pairs": 0,
+      "vehicles": 0,
+      "segments_grounded_by_vehicles": 0
     },
     "method": "DTM + nDSM",
     "terrain_source": "Copernicus GLO-30 (auto)",
@@ -60,36 +60,43 @@
       22,
       22
     ],
-    "coarse_min": -2.5086724758148193,
-    "coarse_max": 22.520029067993164,
+    "coarse_min": 42.70058059692383,
+    "coarse_max": 59.62696838378906,
     "opening_cells": 3
   },
   "stats": {
     "surface": {
-      "min": -0.22856849431991577,
-      "max": 115.0015869140625,
-      "mean": 15.871230125427246,
-      "p2": 1.419618010520935,
-      "p98": 66.64344787597656
+      "min": 42.82671356201172,
+      "max": 67.53970336914062,
+      "mean": 49.05773162841797,
+      "std": 6.692592620849609,
+      "p02": 43.01160430908203,
+      "p50": 44.52884292602539,
+      "p98": 63.7409782409668
     },
     "ndsm": {
       "min": 0.0,
-      "max": 107.2042007446289,
-      "mean": 10.432424545288086,
-      "p2": 0.0,
-      "p98": 60.85731506347656
+      "max": 10.017311096191406,
+      "mean": 1.7107741832733154,
+      "std": 2.670121908187866,
+      "p02": 0.0,
+      "p50": 0.0,
+      "p98": 7.768999099731445
     },
     "dtm": {
-      "min": -0.2443995624780655,
-      "max": 12.751542091369629,
-      "mean": 5.438807010650635,
-      "p2": 0.9646866321563721,
-      "p98": 11.861071586608887
-    }
+      "min": 42.82671356201172,
+      "max": 57.823673248291016,
+      "mean": 47.346961975097656,
+      "std": 4.342850208282471,
+      "p02": 43.01160430908203,
+      "p50": 44.512611389160156,
+      "p98": 57.21604919433594
+    },
+    "built_fraction": 0.2830674431579572
   },
   "height_png_scale": {
-    "offset_m": -0.22856849431991577,
-    "scale_m": 0.001758299464536239
+    "offset_m": 42.82671356201172,
+    "scale_m": 0.00037709605259981545
   },
   "mesh": {
     "grid_shape": [
@@ -98,7 +105,7 @@
     ],
     "width_m": 599.94,
     "depth_m": 599.94,
-    "height_offset": 1.265304446220398,
+    "height_offset": 42.914676666259766,
     "grid_layers": [
       "surface",
       "ndsm",
@@ -110,25 +117,25 @@
     "faces": 522242
   },
   "files": {
-    "preview": "rotterdam_centre-truth_preview.png",
-    "texture": "rotterdam_centre-truth_texture.jpg",
-    "mesh": "rotterdam_centre-truth_mesh.glb",
-    "grid": "rotterdam_centre-truth_grid.bin",
-    "meta": "rotterdam_centre-truth_meta.json"
+    "preview": "veluwe_forest_preview.png",
+    "texture": "veluwe_forest_texture.jpg",
+    "mesh": "veluwe_forest_mesh.glb",
+    "grid": "veluwe_forest_grid.bin",
+    "meta": "veluwe_forest_meta.json"
   },
   "warnings": [],
   "timings_s": {
-    "ingest": 0.19,
-    "depth": 54.28,
-    "calibration": 0.36,
-    "outputs": 2.92,
-    "mesh": 0.9,
-    "total": 58.89
+    "ingest": 0.2,
+    "depth": 64.58,
+    "calibration": 3.96,
+    "outputs": 2.62,
+    "mesh": 0.91,
+    "total": 72.52
   },
   "config": {
-    "input": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/outputs/demo_sites/rotterdam_centre/ortho_0.25m.tif",
-    "output_dir": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall-web/public/rotterdam_centre",
-    "name": "rotterdam_centre",
+    "input": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/outputs/demo_sites/veluwe_forest/ortho_0.25m.tif",
+    "output_dir": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall-web/public/veluwe_forest",
+    "name": "veluwe_forest",
     "weights": "decoder_best.pth",
     "model_key": null,
     "device": null,
@@ -151,24 +158,23 @@
     "dtm_opening_cells": 3,
     "events": true
   },
-  "is_reference": true,
   "comparison": {
-    "site": "rotterdam_centre",
-    "landscape": "high-rise urban",
+    "site": "veluwe_forest",
+    "landscape": "forest",
     "extent_m": 600,
     "reference": "AHN airborne LiDAR (0.5 m), height above ground",
     "held_out": true,
     "metrics": {
-      "rmse": 14.197869404004921,
-      "mae": 7.6365377541534025,
-      "bias": -5.731701936395886,
-      "nmad": 4.169504265975952,
-      "le90": 19.120742750167853,
-      "pearson_r": 0.641432061909036,
-      "r2": 0.16693814593903622
+      "rmse": 2.1877408087329644,
+      "mae": 1.0201790150913175,
+      "bias": -0.22695914260176842,
+      "nmad": 0.014637170221516862,
+      "le90": 3.9008403778076186,
+      "pearson_r": 0.7872781385166681,
+      "r2": 0.6147752477663573
     },
-    "predict_zero_rmse": 18.729914574693446,
-    "truth_scene": "rotterdam_centre-truth",
-    "model_scene": "rotterdam_centre"
+    "predict_zero_rmse": 4.022346552643772,
+    "truth_scene": "veluwe_forest-truth",
+    "model_scene": "veluwe_forest"
   }
 }

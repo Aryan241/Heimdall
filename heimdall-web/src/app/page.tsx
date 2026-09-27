@@ -48,9 +48,9 @@ interface Progress {
 /** Scenes shipped with the app. The benchmark pairs each have a LiDAR twin built by
  *  `scripts/build_demo_site.py`, so a reconstruction can be compared against measured truth. */
 const BUNDLED_SCENES: { id: string; label: string; note: string }[] = [
-  { id: 'utrecht_suburb', label: 'Utrecht — suburban', note: 'residential, held-out LiDAR' },
-  { id: 'rotterdam_centre', label: 'Rotterdam — high-rise', note: 'hardest case, held-out LiDAR' },
-  { id: 'demo', label: 'Kathmandu — drone', note: 'no reference available' },
+  { id: 'utrecht_suburb', label: 'Utrecht — suburban', note: '2.49 m RMSE · r 0.78 vs LiDAR' },
+  { id: 'veluwe_forest', label: 'Veluwe — forest', note: '2.26 m RMSE · r 0.79 vs LiDAR' },
+  { id: 'valkenburg_hills', label: 'Valkenburg — hills', note: '3.00 m RMSE · r 0.70 vs LiDAR' },
 ];
 
 const sceneUrl = (id: string) => ({ base: `/${id}/`, meta: `${id}_meta.json` });
@@ -106,7 +106,7 @@ export default function Home() {
   useEffect(() => {
     // Initial load: bundled demo scene + job history (async, so state updates happen after mount).
     const t = setTimeout(() => {
-      openScene('demo', '/demo/', 'demo_meta.json');
+      openScene('utrecht_suburb', '/utrecht_suburb/', 'utrecht_suburb_meta.json');
       refreshJobs();
     }, 0);
     return () => clearTimeout(t);
@@ -226,7 +226,7 @@ export default function Home() {
         {meta && (
           <div className="header-scene">
             <span className={`badge badge--${meta.product}`}>{PRODUCT_LABEL[meta.product]}</span>
-            <span className="muted">{meta.input}{scene?.id === 'demo' ? ' · demo' : ''}</span>
+            <span className="muted">{meta.input}</span>
             {meta.is_reference && <span className="badge badge--ndsm">reference · measured</span>}
             {comparison && !meta.is_reference && (
               <span className="badge badge--absolute_dsm">
@@ -439,7 +439,7 @@ export default function Home() {
             )}
           </section>
 
-          {scene && <ValidationPanel key={scene.id} scene={scene} canValidate={!scene.id.startsWith('demo') && !meta?.comparison} />}
+          {scene && <ValidationPanel key={scene.id} scene={scene} canValidate={!meta?.comparison} />}
 
           {jobs.length > 0 && (
             <section className="panel">

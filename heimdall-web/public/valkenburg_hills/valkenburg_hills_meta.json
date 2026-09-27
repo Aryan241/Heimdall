@@ -1,0 +1,180 @@
+{
+  "version": 2,
+  "input": "ortho_0.25m.tif",
+  "kind": "georeferenced",
+  "product": "absolute_dsm",
+  "product_description": "Absolute DSM (metres, orthometric; terrain datum + predicted above-ground height)",
+  "units": "m",
+  "mode": "head",
+  "model": "vit-b",
+  "weights": "decoder_best.pth",
+  "native_shape": [
+    2400,
+    2400
+  ],
+  "working_shape": [
+    1818,
+    1818
+  ],
+  "gsd": {
+    "source": "geotransform",
+    "native_m": 0.25,
+    "working_m": 0.33
+  },
+  "crs_epsg": 28992,
+  "crs_wkt": "PROJCS[\"Amersfoort / RD New\",GEOGCS[\"Amersfoort\",DATUM[\"Amersfoort\",SPHEROID[\"Bessel 1841\",6377397.155,299.1528128,AUTHORITY[\"EPSG\",\"7004\"]],AUTHORITY[\"EPSG\",\"6289\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4289\"]],PROJECTION[\"Oblique_Stereographic\"],PARAMETER[\"latitude_of_origin\",52.1561605555556],PARAMETER[\"central_meridian\",5.38763888888889],PARAMETER[\"scale_factor\",0.9999079],PARAMETER[\"false_easting\",155000],PARAMETER[\"false_northing\",463000],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"28992\"]]",
+  "working_transform": [
+    0.33003300330033003,
+    0.0,
+    186500.0,
+    0.0,
+    -0.33003300330033003,
+    319100.0
+  ],
+  "center_latlon": [
+    50.858142340263726,
+    5.838813975062391
+  ],
+  "bounds": [
+    186500.0,
+    318500.0,
+    187100.0,
+    319100.0
+  ],
+  "calibration": {
+    "refinement": {
+      "method": "segment-wise planar regularisation",
+      "segments": 1749,
+      "built_surfaces": 243,
+      "pitched": 40,
+      "vegetation_objects": 457,
+      "bimodal_splits": 405,
+      "merged_pairs": 32,
+      "vehicles": 9,
+      "segments_grounded_by_vehicles": 5
+    },
+    "method": "DTM + nDSM",
+    "terrain_source": "Copernicus GLO-30 (auto)",
+    "coverage": 1.0,
+    "coarse_shape": [
+      22,
+      22
+    ],
+    "coarse_min": 68.5,
+    "coarse_max": 136.5267333984375,
+    "opening_cells": 3
+  },
+  "stats": {
+    "surface": {
+      "min": 68.55121612548828,
+      "max": 129.53514099121094,
+      "mean": 79.1699447631836,
+      "std": 10.82837200164795,
+      "p02": 68.66523742675781,
+      "p50": 75.92356872558594,
+      "p98": 112.16219329833984
+    },
+    "ndsm": {
+      "min": 0.0,
+      "max": 10.6906156539917,
+      "mean": 1.5709214210510254,
+      "std": 2.16162371635437,
+      "p02": 0.0,
+      "p50": 0.369686484336853,
+      "p98": 7.194278717041016
+    },
+    "dtm": {
+      "min": 68.55121612548828,
+      "max": 120.88230895996094,
+      "mean": 77.59902954101562,
+      "std": 9.905802726745605,
+      "p02": 68.65863800048828,
+      "p50": 73.51016998291016,
+      "p98": 107.73250579833984
+    },
+    "built_fraction": 0.2523808486459207
+  },
+  "height_png_scale": {
+    "offset_m": 68.55121612548828,
+    "scale_m": 0.0009305550448725514
+  },
+  "mesh": {
+    "grid_shape": [
+      512,
+      512
+    ],
+    "width_m": 599.94,
+    "depth_m": 599.94,
+    "height_offset": 68.59159088134766,
+    "grid_layers": [
+      "surface",
+      "ndsm",
+      "dtm",
+      "slope_deg"
+    ],
+    "z_scale": 1.0,
+    "vertices": 262144,
+    "faces": 522242
+  },
+  "files": {
+    "preview": "valkenburg_hills_preview.png",
+    "texture": "valkenburg_hills_texture.jpg",
+    "mesh": "valkenburg_hills_mesh.glb",
+    "grid": "valkenburg_hills_grid.bin",
+    "meta": "valkenburg_hills_meta.json"
+  },
+  "warnings": [],
+  "timings_s": {
+    "ingest": 0.16,
+    "depth": 56.71,
+    "calibration": 7.87,
+    "outputs": 2.75,
+    "mesh": 0.87,
+    "total": 68.59
+  },
+  "config": {
+    "input": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/outputs/demo_sites/valkenburg_hills/ortho_0.25m.tif",
+    "output_dir": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall-web/public/valkenburg_hills",
+    "name": "valkenburg_hills",
+    "weights": "decoder_best.pth",
+    "model_key": null,
+    "device": null,
+    "reference_dem": null,
+    "auto_dem": true,
+    "gcps": null,
+    "gsd": null,
+    "target_gsd": null,
+    "max_side": 8192,
+    "tile_size": 512,
+    "overlap": 128,
+    "tta": true,
+    "refine": true,
+    "band_order": null,
+    "export_mesh": true,
+    "mesh_grid": 512,
+    "texture_side": 4096,
+    "max_height": null,
+    "use_segmentation": false,
+    "dtm_opening_cells": 3,
+    "events": true
+  },
+  "comparison": {
+    "site": "valkenburg_hills",
+    "landscape": "hilly town",
+    "extent_m": 600,
+    "reference": "AHN airborne LiDAR (0.5 m), height above ground",
+    "held_out": true,
+    "metrics": {
+      "rmse": 2.9997437501805813,
+      "mae": 1.5249995953500406,
+      "bias": -0.7664633364525733,
+      "nmad": 0.4928286882876991,
+      "le90": 4.766596603393564,
+      "pearson_r": 0.7028977828303883,
+      "r2": 0.43148878529098933
+    },
+    "predict_zero_rmse": 4.614269751963073,
+    "truth_scene": "valkenburg_hills-truth",
+    "model_scene": "valkenburg_hills"
+  }
+}
