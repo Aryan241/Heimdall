@@ -39,7 +39,7 @@ The height model is a frozen **Depth Anything V2 Base** backbone plus a trained 
    │ Stage 1  Ingest — GeoTIFF (CRS, transform, nodata) or plain image; band order; 16-bit percentile stretch
    │ Stage 2  GSD — from the geotransform (projected or geographic CRS), --gsd, or a vehicle-size heuristic
    │ Stage 3  Resample to the working GSD (0.33 m = training GSD; up-sampling capped at 3×)
-   │ Stage 4  Height — DA2 (frozen) + ASPP head on 512² tiles, raised-cosine blending → nDSM (m)
+   │ Stage 4  Height — DA2 (frozen) + multi-scale decoder on 512² tiles, raised-cosine blending → nDSM (m)
    │ Stage 5  Calibration — DSM = DTM + nDSM; DTM from coarse DEM reprojected to the image grid,
    │          morphological opening (bare earth) + smooth up-sampling; optional GCP plane
    │ Stage 6  Outputs — DSM / nDSM / DTM GeoTIFF, 16-bit PNG, hill-shaded preview, metadata JSON
@@ -53,11 +53,24 @@ The head learned *metric* heights from GAMUS imagery at 0.33 m/px. A monocular m
 
 ### 2.2 Height model
 * **Backbone**: Depth Anything V2 Base (~98 M parameters, frozen), selected by measured correlation with LiDAR height (§4.4). It returns relative *disparity* (larger = closer = taller). Depth Anything V3's *monocular* model scores the same and is selectable (`--model da3-mono-l`, needs a head trained for it); V3's *metric* model is unusable for nadir imagery (§4.4).
-* **Head** (`heimdall/decoder/head.py`): RGB + backbone depth → conv stem → ASPP (dilations 1/6/12/18 + global pooling) → two maps, a scale `S(x,y)` and a shift `T(x,y)`:
+* **Head** (`heimdall/decoder/multiscale_head.py`): the backbone's DPT neck exposes a
+  four-stage feature pyramid (128 channels each, at strides ~1/14 to ~1/1.75) *before* it is
+  collapsed into a single depth number. The decoder consumes that pyramid, fuses it
+  coarse-to-fine with DPT-style residual blocks, applies dilated context (1/6/12/18 plus a
+  global pool) so it can distinguish a tall building from a bright roof at ground level, and
+  refines at full resolution conditioned on the RGB image and the backbone depth. It outputs
+  two maps, a scale `S(x,y)` and a shift `T(x,y)`:
 
   `nDSM(x, y) = ReLU( S(x, y) · D(x, y) + T(x, y) )`
 
-  Initialised to the identity (scale bias 1, shift bias 0). 1.37 M trainable parameters.
+  Initialised to the identity (scale bias 1, shift bias 0), so training starts from "height =
+  backbone depth" and learns the correction. 1.72 M trainable parameters; GroupNorm throughout,
+  so small batches behave like large ones.
+
+  The earlier head (`heimdall/decoder/head.py`, ASPP over RGB + the scalar depth map) is kept
+  for loading legacy checkpoints and is selectable with `--head affine`. It sees only the
+  collapsed depth number, so everything the transformer knew about roof planes and façades had
+  already been discarded before it ran — which is why the pyramid version replaced it.
 * **Inference** uses the same 512² tile size as training, 128 px overlaps with raised-cosine blending, and optional flip test-time augmentation.
 
 ### 2.3 Object-based regularisation (`heimdall/refine`)
@@ -222,14 +235,47 @@ it from scratch (`docs/TRAINING.md`) — a head is fitted to one backbone's outp
 distribution, so the old weights could not be fine-tuned. The table at the top of this
 section is that retrained model, measured by re-running the same benchmark.
 
-### 4.5 Qualitative end-to-end run (bundled demo)
+### 4.5 Ground-truth comparison in the viewer
+
+`scripts/build_demo_site.py` builds two scenes for the same place: Heimdall's reconstruction
+from the orthophoto, and a second scene whose heights come from the AHN LiDAR instead of the
+model. Both use the same texture, working grid, mesh resolution and vertical origin, so
+switching between them in the web viewer isolates exactly what the model got wrong. The
+reference scene reuses the pipeline's own terrain datum and replaces only the above-ground
+layer, so the constant offset between the coarse DEM's geoid and the LiDAR's NAP datum
+cancels out instead of contaminating the comparison.
+
+Two pairs ship with the app, both from held-out benchmark sites:
+
+| Scene | Landscape | RMSE | MAE | Bias | r | Predict-zero RMSE |
+|---|---|---|---|---|---|---|
+| `utrecht_suburb` | suburban residential, 600 m | 2.92 m | 1.89 m | −1.05 m | 0.769 | 5.39 m |
+| `rotterdam_centre` | high-rise urban, 600 m | 14.20 m | 7.64 m | −5.73 m | 0.641 | 18.73 m |
+
+Utrecht is the representative case and Rotterdam the hardest one in the whole benchmark; both
+are shipped deliberately rather than only the flattering one. Flying the Rotterdam pair shows
+the failure mode directly: the street layout, block structure and relative massing are right,
+but the towers are built to roughly a third of their true height (model surface peaks at
+37 m against the LiDAR's 115 m).
+
+Any of the eight benchmark sites can be built the same way:
+
+```bash
+python scripts/build_demo_site.py --site amsterdam_centre --size 600
+```
+
+### 4.6 Qualitative end-to-end run (bundled drone scene)
 Georeferenced drone orthomosaic, Kathmandu (EPSG:32645, 1.25 cm GSD, 7649 × 8154 px):
 * resampled to 0.33 m (290 × 309 working grid);
 * terrain datum from Copernicus GLO-30, fetched automatically: 1307–1309 m;
-* resulting DSM: 1307.6–1316.6 m, with above-ground heights up to about 9 m;
-* total runtime about 13 s on an Apple-silicon laptop (MPS), including the DEM download.
+* resulting DSM: 1308.3–1311.9 m, with above-ground heights up to about 4.3 m;
+* total runtime about 11 s on an Apple-silicon laptop (MPS), including the DEM download.
 
-Structure is correct (roads and courtyards low, roofs and tree crowns high). Multi-storey buildings appear under-estimated, which the GAMUS evaluation will quantify.
+Structure is correct (roads and courtyards low, roofs and tree crowns high). No reference
+exists for this scene, so it is a qualitative check only — the retrained model produces a
+flatter surface here than the previous checkpoint did (4.3 m against 9.4 m peak height), and
+without ground truth neither can be called correct. The quantitative claims in this report all
+come from §4.4 and §4.5, where LiDAR truth exists.
 
 ---
 

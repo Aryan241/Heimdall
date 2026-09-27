@@ -1,0 +1,174 @@
+{
+  "version": 2,
+  "input": "AHN airborne LiDAR",
+  "kind": "georeferenced",
+  "product": "absolute_dsm",
+  "product_description": "Reference surface measured by airborne LiDAR (AHN, 0.5 m), resampled to the model's working grid.",
+  "units": "m",
+  "mode": "reference",
+  "model": null,
+  "weights": null,
+  "native_shape": [
+    2400,
+    2400
+  ],
+  "working_shape": [
+    1818,
+    1818
+  ],
+  "gsd": {
+    "source": "geotransform",
+    "native_m": 0.25,
+    "working_m": 0.33
+  },
+  "crs_epsg": 28992,
+  "crs_wkt": "PROJCS[\"Amersfoort / RD New\",GEOGCS[\"Amersfoort\",DATUM[\"Amersfoort\",SPHEROID[\"Bessel 1841\",6377397.155,299.1528128,AUTHORITY[\"EPSG\",\"7004\"]],AUTHORITY[\"EPSG\",\"6289\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4289\"]],PROJECTION[\"Oblique_Stereographic\"],PARAMETER[\"latitude_of_origin\",52.1561605555556],PARAMETER[\"central_meridian\",5.38763888888889],PARAMETER[\"scale_factor\",0.9999079],PARAMETER[\"false_easting\",155000],PARAMETER[\"false_northing\",463000],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"28992\"]]",
+  "working_transform": [
+    0.33003300330033003,
+    0.0,
+    92400.0,
+    0.0,
+    -0.33003300330033003,
+    437600.0
+  ],
+  "center_latlon": [
+    51.920690358184416,
+    4.481577016913777
+  ],
+  "bounds": [
+    92400.0,
+    437000.0,
+    93000.0,
+    437600.0
+  ],
+  "calibration": {
+    "refinement": {
+      "method": "segment-wise planar regularisation",
+      "segments": 2253,
+      "built_surfaces": 1183,
+      "pitched": 274,
+      "vegetation_objects": 358,
+      "bimodal_splits": 743,
+      "merged_pairs": 289,
+      "vehicles": 7,
+      "segments_grounded_by_vehicles": 6
+    },
+    "method": "DTM + nDSM",
+    "terrain_source": "Copernicus GLO-30 (auto)",
+    "coverage": 1.0,
+    "coarse_shape": [
+      22,
+      22
+    ],
+    "coarse_min": -2.5086724758148193,
+    "coarse_max": 22.520029067993164,
+    "opening_cells": 3
+  },
+  "stats": {
+    "surface": {
+      "min": -0.22856849431991577,
+      "max": 115.0015869140625,
+      "mean": 15.871230125427246,
+      "p2": 1.419618010520935,
+      "p98": 66.64344787597656
+    },
+    "ndsm": {
+      "min": 0.0,
+      "max": 107.2042007446289,
+      "mean": 10.432424545288086,
+      "p2": 0.0,
+      "p98": 60.85731506347656
+    },
+    "dtm": {
+      "min": -0.2443995624780655,
+      "max": 12.751542091369629,
+      "mean": 5.438807010650635,
+      "p2": 0.9646866321563721,
+      "p98": 11.861071586608887
+    }
+  },
+  "height_png_scale": {
+    "offset_m": -0.22856849431991577,
+    "scale_m": 0.001758299464536239
+  },
+  "mesh": {
+    "grid_shape": [
+      512,
+      512
+    ],
+    "width_m": 599.94,
+    "depth_m": 599.94,
+    "height_offset": 1.265304446220398,
+    "grid_layers": [
+      "surface",
+      "ndsm",
+      "dtm",
+      "slope_deg"
+    ],
+    "z_scale": 1.0,
+    "vertices": 262144,
+    "faces": 522242
+  },
+  "files": {
+    "preview": "rotterdam_centre-truth_preview.png",
+    "texture": "rotterdam_centre-truth_texture.jpg",
+    "mesh": "rotterdam_centre-truth_mesh.glb",
+    "grid": "rotterdam_centre-truth_grid.bin",
+    "meta": "rotterdam_centre-truth_meta.json"
+  },
+  "warnings": [],
+  "timings_s": {
+    "ingest": 0.19,
+    "depth": 54.28,
+    "calibration": 0.36,
+    "outputs": 2.92,
+    "mesh": 0.9,
+    "total": 58.89
+  },
+  "config": {
+    "input": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/outputs/demo_sites/rotterdam_centre/ortho_0.25m.tif",
+    "output_dir": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall-web/public/rotterdam_centre",
+    "name": "rotterdam_centre",
+    "weights": "decoder_best.pth",
+    "model_key": null,
+    "device": null,
+    "reference_dem": null,
+    "auto_dem": true,
+    "gcps": null,
+    "gsd": null,
+    "target_gsd": null,
+    "max_side": 8192,
+    "tile_size": 512,
+    "overlap": 128,
+    "tta": true,
+    "refine": true,
+    "band_order": null,
+    "export_mesh": true,
+    "mesh_grid": 512,
+    "texture_side": 4096,
+    "max_height": null,
+    "use_segmentation": false,
+    "dtm_opening_cells": 3,
+    "events": true
+  },
+  "is_reference": true,
+  "comparison": {
+    "site": "rotterdam_centre",
+    "landscape": "high-rise urban",
+    "extent_m": 600,
+    "reference": "AHN airborne LiDAR (0.5 m), height above ground",
+    "held_out": true,
+    "metrics": {
+      "rmse": 14.197869404004921,
+      "mae": 7.6365377541534025,
+      "bias": -5.731701936395886,
+      "nmad": 4.169504265975952,
+      "le90": 19.120742750167853,
+      "pearson_r": 0.641432061909036,
+      "r2": 0.16693814593903622
+    },
+    "predict_zero_rmse": 18.729914574693446,
+    "truth_scene": "rotterdam_centre-truth",
+    "model_scene": "rotterdam_centre"
+  }
+}

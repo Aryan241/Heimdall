@@ -22,6 +22,19 @@ export interface MeshMeta {
   faces: number;
 }
 
+/** Present on the bundled benchmark scenes: how this reconstruction scores against LiDAR. */
+export interface Comparison {
+  site: string;
+  landscape: string;
+  extent_m: number;
+  reference: string;
+  held_out: boolean;
+  metrics: { rmse?: number; mae?: number; bias?: number; nmad?: number; le90?: number; pearson_r?: number; r2?: number };
+  predict_zero_rmse?: number;
+  truth_scene: string;
+  model_scene: string;
+}
+
 export interface SceneMeta {
   version: number;
   input: string;
@@ -49,6 +62,9 @@ export interface SceneMeta {
   files: Record<string, string>;
   warnings: string[];
   timings_s: Record<string, number>;
+  /** Set on the LiDAR reference twin of a benchmark scene. */
+  is_reference?: boolean;
+  comparison?: Comparison;
 }
 
 /** A loaded scene: metadata plus the URL prefix its files are served from. */

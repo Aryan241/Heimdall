@@ -1,0 +1,174 @@
+{
+  "version": 2,
+  "input": "AHN airborne LiDAR",
+  "kind": "georeferenced",
+  "product": "absolute_dsm",
+  "product_description": "Reference surface measured by airborne LiDAR (AHN, 0.5 m), resampled to the model's working grid.",
+  "units": "m",
+  "mode": "reference",
+  "model": null,
+  "weights": null,
+  "native_shape": [
+    2400,
+    2400
+  ],
+  "working_shape": [
+    1818,
+    1818
+  ],
+  "gsd": {
+    "source": "geotransform",
+    "native_m": 0.25,
+    "working_m": 0.33
+  },
+  "crs_epsg": 28992,
+  "crs_wkt": "PROJCS[\"Amersfoort / RD New\",GEOGCS[\"Amersfoort\",DATUM[\"Amersfoort\",SPHEROID[\"Bessel 1841\",6377397.155,299.1528128,AUTHORITY[\"EPSG\",\"7004\"]],AUTHORITY[\"EPSG\",\"6289\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4289\"]],PROJECTION[\"Oblique_Stereographic\"],PARAMETER[\"latitude_of_origin\",52.1561605555556],PARAMETER[\"central_meridian\",5.38763888888889],PARAMETER[\"scale_factor\",0.9999079],PARAMETER[\"false_easting\",155000],PARAMETER[\"false_northing\",463000],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"28992\"]]",
+  "working_transform": [
+    0.33003300330033003,
+    0.0,
+    137500.0,
+    0.0,
+    -0.33003300330033003,
+    453100.0
+  ],
+  "center_latlon": [
+    52.063228048509366,
+    5.136383032502284
+  ],
+  "bounds": [
+    137500.0,
+    452500.0,
+    138100.0,
+    453100.0
+  ],
+  "calibration": {
+    "refinement": {
+      "method": "segment-wise planar regularisation",
+      "segments": 2671,
+      "built_surfaces": 690,
+      "pitched": 114,
+      "vegetation_objects": 557,
+      "bimodal_splits": 934,
+      "merged_pairs": 175,
+      "vehicles": 0,
+      "segments_grounded_by_vehicles": 0
+    },
+    "method": "DTM + nDSM",
+    "terrain_source": "Copernicus GLO-30 (auto)",
+    "coverage": 1.0,
+    "coarse_shape": [
+      22,
+      22
+    ],
+    "coarse_min": 1.382139801979065,
+    "coarse_max": 10.327075958251953,
+    "opening_cells": 3
+  },
+  "stats": {
+    "surface": {
+      "min": 2.0636496543884277,
+      "max": 32.469696044921875,
+      "mean": 7.554011821746826,
+      "p2": 2.701759099960327,
+      "p98": 19.24286460876465
+    },
+    "ndsm": {
+      "min": 0.0,
+      "max": 27.70762062072754,
+      "mean": 3.476775646209717,
+      "p2": 0.0,
+      "p98": 13.830219268798828
+    },
+    "dtm": {
+      "min": 2.0629541873931885,
+      "max": 7.450043201446533,
+      "mean": 4.077235698699951,
+      "p2": 2.554063320159912,
+      "p98": 6.86297607421875
+    }
+  },
+  "height_png_scale": {
+    "offset_m": 2.0636496543884277,
+    "scale_m": 0.00046396652766511707
+  },
+  "mesh": {
+    "grid_shape": [
+      512,
+      512
+    ],
+    "width_m": 599.94,
+    "depth_m": 599.94,
+    "height_offset": 2.7537035942077637,
+    "grid_layers": [
+      "surface",
+      "ndsm",
+      "dtm",
+      "slope_deg"
+    ],
+    "z_scale": 1.0,
+    "vertices": 262144,
+    "faces": 522242
+  },
+  "files": {
+    "preview": "utrecht_suburb-truth_preview.png",
+    "texture": "utrecht_suburb-truth_texture.jpg",
+    "mesh": "utrecht_suburb-truth_mesh.glb",
+    "grid": "utrecht_suburb-truth_grid.bin",
+    "meta": "utrecht_suburb-truth_meta.json"
+  },
+  "warnings": [],
+  "timings_s": {
+    "ingest": 0.18,
+    "depth": 53.6,
+    "calibration": 0.4,
+    "outputs": 2.88,
+    "mesh": 0.87,
+    "total": 58.18
+  },
+  "config": {
+    "input": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/outputs/demo_sites/utrecht_suburb/ortho_0.25m.tif",
+    "output_dir": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall-web/public/utrecht_suburb",
+    "name": "utrecht_suburb",
+    "weights": "decoder_best.pth",
+    "model_key": null,
+    "device": null,
+    "reference_dem": null,
+    "auto_dem": true,
+    "gcps": null,
+    "gsd": null,
+    "target_gsd": null,
+    "max_side": 8192,
+    "tile_size": 512,
+    "overlap": 128,
+    "tta": true,
+    "refine": true,
+    "band_order": null,
+    "export_mesh": true,
+    "mesh_grid": 512,
+    "texture_side": 4096,
+    "max_height": null,
+    "use_segmentation": false,
+    "dtm_opening_cells": 3,
+    "events": true
+  },
+  "is_reference": true,
+  "comparison": {
+    "site": "utrecht_suburb",
+    "landscape": "suburban residential",
+    "extent_m": 600,
+    "reference": "AHN airborne LiDAR (0.5 m), height above ground",
+    "held_out": true,
+    "metrics": {
+      "rmse": 2.920243324308511,
+      "mae": 1.8921951142827407,
+      "bias": -1.0457302007698144,
+      "nmad": 1.4838324942469596,
+      "le90": 5.008964347839357,
+      "pearson_r": 0.7691490648169671,
+      "r2": 0.49581622028608485
+    },
+    "predict_zero_rmse": 5.385358129811973,
+    "truth_scene": "utrecht_suburb-truth",
+    "model_scene": "utrecht_suburb"
+  }
+}

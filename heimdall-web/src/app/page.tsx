@@ -44,6 +44,16 @@ interface Progress {
   message: string;
 }
 
+/** Scenes shipped with the app. The benchmark pairs each have a LiDAR twin built by
+ *  `scripts/build_demo_site.py`, so a reconstruction can be compared against measured truth. */
+const BUNDLED_SCENES: { id: string; label: string; note: string }[] = [
+  { id: 'utrecht_suburb', label: 'Utrecht — suburban', note: 'residential, held-out LiDAR' },
+  { id: 'rotterdam_centre', label: 'Rotterdam — high-rise', note: 'hardest case, held-out LiDAR' },
+  { id: 'demo', label: 'Kathmandu — drone', note: 'no reference available' },
+];
+
+const sceneUrl = (id: string) => ({ base: `/${id}/`, meta: `${id}_meta.json` });
+
 export default function Home() {
   const [scene, setScene] = useState<Scene | null>(null);
   const [grid, setGrid] = useState<TerrainGrid | null>(null);
@@ -198,6 +208,7 @@ export default function Home() {
   };
 
   const meta = scene?.meta;
+  const comparison = meta?.comparison;
   const s = meta?.stats.surface;
   const units = meta?.units === 'm' ? 'm' : 'rel';
 
@@ -215,6 +226,12 @@ export default function Home() {
           <div className="header-scene">
             <span className={`badge badge--${meta.product}`}>{PRODUCT_LABEL[meta.product]}</span>
             <span className="muted">{meta.input}{scene?.id === 'demo' ? ' · demo' : ''}</span>
+            {meta.is_reference && <span className="badge badge--ndsm">reference · measured</span>}
+            {comparison && !meta.is_reference && (
+              <span className="badge badge--absolute_dsm">
+                vs LiDAR: {fmt(comparison.metrics.rmse)} m RMSE · r {fmt(comparison.metrics.pearson_r)}
+              </span>
+            )}
           </div>
         )}
       </header>
@@ -369,7 +386,59 @@ export default function Home() {
             </section>
           )}
 
-          {scene && <ValidationPanel key={scene.id} scene={scene} canValidate={scene.id !== 'demo'} />}
+          {/* ── Bundled scenes + ground-truth comparison ── */}
+          <section className="panel">
+            <h3 className="panel-heading">Example scenes</h3>
+            <ul className="jobs">
+              {BUNDLED_SCENES.map((b) => {
+                const active = scene?.id === b.id || comparison?.model_scene === b.id;
+                const u = sceneUrl(b.id);
+                return (
+                  <li key={b.id}>
+                    <button className={active ? 'job job--on' : 'job'}
+                      onClick={() => openScene(b.id, u.base, u.meta)}>
+                      <span>{b.label}</span>
+                      <small>{b.note}</small>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {comparison && (
+              <>
+                <p className="muted small" style={{ marginTop: 10 }}>
+                  Same place, same grid, same texture — only the heights differ. Fly through both and compare.
+                </p>
+                <div className="seg" style={{ marginTop: 8 }}>
+                  {([['model', comparison.model_scene, 'Heimdall'],
+                     ['truth', comparison.truth_scene, 'LiDAR truth']] as const).map(([kind, id, label]) => {
+                    const on = kind === 'truth' ? !!meta?.is_reference : !meta?.is_reference;
+                    const u = sceneUrl(id);
+                    return (
+                      <button key={kind} className={`chip ${on ? 'chip--on' : ''}`}
+                        onClick={() => openScene(id, u.base, u.meta)}>{label}</button>
+                    );
+                  })}
+                </div>
+                <table className="metrics-table" style={{ marginTop: 10 }}>
+                  <tbody>
+                    <tr><td>Site</td><td>{comparison.landscape}, {comparison.extent_m} m</td></tr>
+                    <tr><td>RMSE</td><td>{fmt(comparison.metrics.rmse)} m</td></tr>
+                    <tr><td>MAE</td><td>{fmt(comparison.metrics.mae)} m</td></tr>
+                    <tr><td>Bias</td><td>{fmt(comparison.metrics.bias)} m</td></tr>
+                    <tr><td>Correlation</td><td>{fmt(comparison.metrics.pearson_r)}</td></tr>
+                    <tr><td>Predict-zero RMSE</td><td>{fmt(comparison.predict_zero_rmse)} m</td></tr>
+                  </tbody>
+                </table>
+                <p className="muted small" style={{ marginTop: 8 }}>
+                  Reference: {comparison.reference}. This site was excluded from training.
+                </p>
+              </>
+            )}
+          </section>
+
+          {scene && <ValidationPanel key={scene.id} scene={scene} canValidate={!scene.id.startsWith('demo') && !meta?.comparison} />}
 
           {jobs.length > 0 && (
             <section className="panel">
