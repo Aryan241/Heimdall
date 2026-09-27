@@ -48,7 +48,10 @@ def _download(kind: str, split: str, tile: str, suffix: str, tmp: Path, tries: i
     """hf_hub_download with backoff. Hugging Face rate-limits anonymous clients (HTTP 429);
     without this, a parallel run silently loses a large fraction of the dataset."""
     from huggingface_hub import hf_hub_download
-    from huggingface_hub.errors import HfHubHTTPError
+    try:  # the error class moved between huggingface_hub versions
+        from huggingface_hub.errors import HfHubHTTPError
+    except ImportError:  # older releases
+        from huggingface_hub.utils import HfHubHTTPError
 
     last: Exception | None = None
     for attempt in range(tries):
