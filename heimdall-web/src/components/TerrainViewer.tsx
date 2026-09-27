@@ -11,7 +11,7 @@ import {
   valueToY, type TerrainGrid,
 } from '@/lib/terrain';
 
-type Mode = 'orbit' | 'measure' | 'fly' | 'walk';
+type Mode = 'orbit' | 'measure' | 'fly';
 type Layer = 'optical' | 'elevation' | 'agl' | 'slope';
 
 interface Hover {
@@ -156,31 +156,12 @@ function FitCamera({ grid, resetKey }: { grid: TerrainGrid; resetKey: number }) 
   return null;
 }
 
-/* ─── First-person navigation ─────────────────────────────────────────────
- * Two characters share this controller:
- *   fly   — free 6-DOF movement, speed scaled to the scene so a large site stays crossable.
- *   walk  — a person on the ground: fixed eye height, human speed, the camera follows the
- *           terrain smoothly instead of being clamped to it, and walls block you.
- * The previous version only had `fly`, moving at scene/12 m per second (≈50 m/s on a 600 m
- * site) with a hard floor clamp, which is why walking a street felt like being dragged along
- * the ground at speed.
- */
-const EYE_HEIGHT_M = 1.7;       // average eye level
-const WALK_SPEED_MS = 1.5;      // a comfortable walking pace
-const RUN_SPEED_MS = 5.5;       // shift: a jog, so crossing a site does not take forever
-const STEP_UP_M = 0.55;         // a kerb or a low step; anything taller blocks you
-const GROUND_FOLLOW = 9;        // how quickly the eye settles onto a new ground height
-const ACCEL = 7;                // velocity smoothing, so starting and stopping are not instant
-
-function FlyControls({ active, mode, grid, exaggeration }:
-    { active: boolean; mode: Mode; grid: TerrainGrid; exaggeration: number }) {
+/* ─── First-person flythrough ─────────────────────────────────────────── */
+function FlyControls({ active, grid, exaggeration }: { active: boolean; grid: TerrainGrid; exaggeration: number }) {
   const { camera, gl } = useThree();
   const keys = useRef<Set<string>>(new Set());
   const euler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
   const locked = useRef(false);
-  const velocity = useRef(new THREE.Vector3());
-  const eyeY = useRef<number | null>(null);
-  const bob = useRef(0);
 
   useEffect(() => {
     if (!active) return;
@@ -199,7 +180,9 @@ function FlyControls({ active, mode, grid, exaggeration }:
       camera.quaternion.setFromEuler(euler.current);
     };
     const click = () => gl.domElement.requestPointerLock?.();
-    const lockChange = () => { locked.current = document.pointerLockElement === gl.domElement; };
+    const lockChange = () => {
+      locked.current = document.pointerLockElement === gl.domElement;
+    };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     document.addEventListener('mousemove', move);
@@ -217,79 +200,28 @@ function FlyControls({ active, mode, grid, exaggeration }:
     };
   }, [active, camera, gl]);
 
-  // Entering walk mode: drop to eye level rather than snapping there mid-frame.
-  useEffect(() => {
-    if (active && mode === 'walk') eyeY.current = null;
-  }, [active, mode]);
-
-  const groundAt = (x: number, z: number): number | null => {
-    const g = sampleAt(grid, 'surface', x, z);
-    return Number.isFinite(g) ? valueToY(grid, g) * exaggeration : null;
-  };
-
   useFrame((state, dt) => {
     if (!active) return;
     const cam = state.camera;
     const k = keys.current;
-    const step = Math.min(dt, 0.05);
-    const walking = mode === 'walk';
-    const boost = k.has('ShiftLeft') || k.has('ShiftRight');
     const D = Math.max(grid.widthM, grid.depthM);
-
-    const input = new THREE.Vector3(
+    const speed = (D / 12) * (k.has('ShiftLeft') || k.has('ShiftRight') ? 4 : 1) * Math.min(dt, 0.05);
+    const dir = new THREE.Vector3(
       (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0),
-      walking ? 0 : (k.has('Space') || k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') || k.has('KeyC') ? 1 : 0),
+      (k.has('Space') || k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') || k.has('KeyC') ? 1 : 0),
       (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0) - (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0),
     );
-    const vertical = input.y;
-    input.y = 0;
-
-    const speed = walking ? (boost ? RUN_SPEED_MS : WALK_SPEED_MS)
-                          : (D / 12) * (boost ? 4 : 1);
-    const target = new THREE.Vector3();
-    if (input.lengthSq() > 0) {
-      target.copy(input).normalize().applyQuaternion(cam.quaternion);
-      target.y = 0;
-      if (target.lengthSq() > 0) target.normalize().multiplyScalar(speed);
+    if (dir.lengthSq() > 0) {
+      const vertical = dir.y;
+      dir.y = 0;
+      dir.normalize().applyQuaternion(cam.quaternion);
+      cam.position.addScaledVector(dir, speed);
+      cam.position.y += vertical * speed;
     }
-    // Ease towards the target velocity so movement starts and stops like a body, not a switch.
-    velocity.current.lerp(target, 1 - Math.exp(-ACCEL * step));
-
-    const nx = cam.position.x + velocity.current.x * step;
-    const nz = cam.position.z + velocity.current.z * step;
-
-    if (walking) {
-      const here = groundAt(cam.position.x, cam.position.z);
-      const there = groundAt(nx, nz);
-      // A wall, a building edge or a parked car is an obstacle, not a ramp.
-      const blocked = here !== null && there !== null && there - here > STEP_UP_M;
-      if (!blocked && there !== null) {
-        cam.position.x = nx;
-        cam.position.z = nz;
-      } else if (blocked) {
-        velocity.current.set(0, 0, 0);
-      }
-      const g = groundAt(cam.position.x, cam.position.z);
-      if (g !== null) {
-        const wanted = g + EYE_HEIGHT_M;
-        // Follow the terrain smoothly; a hard clamp reads as scraping along the surface.
-        eyeY.current = eyeY.current === null ? wanted
-          : eyeY.current + (wanted - eyeY.current) * (1 - Math.exp(-GROUND_FOLLOW * step));
-        const moving = velocity.current.lengthSq() > 0.05;
-        bob.current += moving ? step * (boost ? 9 : 5.5) : 0;
-        if (!moving) bob.current = 0;
-        cam.position.y = eyeY.current + (moving ? Math.sin(bob.current) * 0.035 : 0);
-      }
-      return;
-    }
-
-    cam.position.x = nx;
-    cam.position.z = nz;
-    cam.position.y += vertical * speed * step;
-    // Free flight still refuses to go underground, but with enough clearance to feel airborne.
-    const g = groundAt(cam.position.x, cam.position.z);
-    if (g !== null) {
-      const minY = g + Math.max(2, D / 400);
+    // Terrain collision: never go below ground + clearance.
+    const ground = sampleAt(grid, 'surface', cam.position.x, cam.position.z);
+    if (Number.isFinite(ground)) {
+      const minY = valueToY(grid, ground) * exaggeration + Math.max(1.5, D / 400);
       if (cam.position.y < minY) cam.position.y = minY;
     }
   });
@@ -431,8 +363,7 @@ export default function TerrainViewer({ scene, grid }: { scene: Scene; grid: Ter
   const modes: { key: Mode; label: string; hint: string }[] = [
     { key: 'orbit', label: 'Orbit', hint: 'Drag to rotate · right-drag to pan · scroll to zoom · hover to read heights' },
     { key: 'measure', label: 'Measure', hint: 'Click two points to measure distance, height difference and profile' },
-    { key: 'walk', label: 'Walk', hint: 'Street level · click to capture mouse · WASD/arrows walk · Shift to jog · walls block you · Esc release' },
-    { key: 'fly', label: 'Fly', hint: 'Free flight · click to capture mouse · WASD/arrows move · Space/E up · Q/C down · Shift boost · Esc release' },
+    { key: 'fly', label: 'Fly', hint: 'Click to capture mouse · WASD/arrows move · Space/E up · Q/C down · Shift boost · Esc release' },
   ];
 
   return (
@@ -573,12 +504,11 @@ export default function TerrainViewer({ scene, grid }: { scene: Scene; grid: Ter
         {points.length === 2 && (
           <Line points={[world(points[0]), world(points[1])]} color="#fbbf24" lineWidth={2.5} depthTest={false} />
         )}
-        {mode !== 'fly' && mode !== 'walk' && (
+        {mode !== 'fly' && (
           <OrbitControls makeDefault autoRotate={autoRotate && mode === 'orbit'} autoRotateSpeed={0.6}
             enableDamping dampingFactor={0.08} maxPolarAngle={Math.PI * 0.495} minDistance={D / 200} maxDistance={D * 8} />
         )}
-        {grid && <FlyControls active={mode === 'fly' || mode === 'walk'} mode={mode} grid={grid}
-          exaggeration={exaggeration} />}
+        {grid && <FlyControls active={mode === 'fly'} grid={grid} exaggeration={exaggeration} />}
         <ScaleProbe onChange={setPxPerMetre} />
         <Capture onReady={(fn) => { snap.current = fn; }} />
       </Canvas>
