@@ -244,3 +244,14 @@ def test_multiscale_head_shapes_and_identity_init():
     out.sum().backward()
     with pytest.raises(AssertionError):
         head(rgb, depth, stages[:3])              # wrong pyramid length is caught
+
+
+def test_multiscale_head_adapts_to_backbone_width():
+    """Depth Anything Base has a 128-channel DPT neck, Large has 256; the head must match."""
+    import torch
+    from heimdall.decoder.multiscale_head import MultiScaleHeightHead
+    for ch, size in ((128, 8), (256, 8)):
+        head = MultiScaleHeightHead(feature_channels=ch)
+        stages = [torch.randn(1, ch, size * 2 ** i, size * 2 ** i) for i in range(4)]
+        out = head(torch.rand(1, 3, 128, 128), torch.rand(1, 1, 128, 128), stages)
+        assert out.shape == (1, 1, 128, 128)

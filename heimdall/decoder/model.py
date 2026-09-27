@@ -42,7 +42,20 @@ class DomainAdaptationWrapper(nn.Module):
         # "multiscale": the DPT feature pyramid as well — far more signal, needs the backbone
         # in the loop during training, so it cannot use the pre-computed depth cache.
         self.head_kind = head
-        self.head = (MultiScaleHeightHead() if head == "multiscale"
+        # The DPT neck's width depends on the backbone (128 for Base, 256 for Large), so the
+        # decoder must be built to match or its projections will not accept the pyramid.
+        feat_ch = 128
+        if load_backbone and self.backbone is not None and not self.is_da3:
+            feat_ch = getattr(self.backbone.config, "fusion_hidden_size", 128)
+        elif head == "multiscale":
+            from transformers import AutoConfig
+            from heimdall.depth.depth_anything import MODEL_REGISTRY
+            try:
+                feat_ch = AutoConfig.from_pretrained(MODEL_REGISTRY[model_key]).fusion_hidden_size
+            except Exception:
+                pass
+        self.feature_channels = feat_ch
+        self.head = (MultiScaleHeightHead(feature_channels=feat_ch) if head == "multiscale"
                      else DomainAdaptationHead(in_channels=4, hidden_dim=128, norm=norm))
         self.loss_fn = MetricDepthLoss(alpha=1.0, beta=0.5, gamma=0.1)
 
