@@ -27,7 +27,7 @@ COPY heimdall/ heimdall/
 COPY depth_anything_3/ depth_anything_3/
 COPY scripts/ scripts/
 COPY infer.py validate.py eval.py ./
-COPY checkpoints/decoder/decoder_best_all.pth checkpoints/decoder/
+COPY checkpoints/decoder/decoder_best.pth checkpoints/decoder/
 # Bake model weights into the image so it runs offline.
 RUN python scripts/prefetch_models.py
 COPY --from=web /app/heimdall-web/.next/standalone ./heimdall-web/
