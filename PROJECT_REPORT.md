@@ -190,6 +190,24 @@ Object-based regularisation ("refined") again changes the metrics by < 0.03 m. I
 because it improves the appearance of roofs in the 3D view, and this confirms it does so
 without distorting the heights.
 
+**Robustness to sensor resolution.** Every number above is measured on 0.25 m aerial
+photography, but the imagery supplied at evaluation will be satellite-class. Re-running the
+same eight sites with the orthophoto degraded by area-averaging to coarser ground sample
+distances (`scripts/benchmark_ahn.py --gsd 0.5 1.0 2.0`):
+
+| Sensor GSD | mean RMSE | mean MAE | mean r | vs 0.25 m |
+|---|---|---|---|---|
+| 0.25 m (aerial) | 5.68 m | 3.26 m | 0.662 | — |
+| 0.5 m | 5.77 m | 3.31 m | 0.652 | +1.6% |
+| 1 m | 5.94 m | 3.40 m | 0.634 | +4.6% |
+| 2 m | 6.57 m | 3.88 m | 0.658 | +15.7% |
+
+Accuracy is essentially flat from 0.25 m to 1 m and degrades gracefully at 2 m — no cliff.
+This is a direct consequence of two design decisions: every input is resampled to the 0.33 m
+training GSD before inference (§2.1), and the training set deliberately included Dutch AHN
+tiles rebuilt at 1 m (`--gsd 1.0`) alongside the 0.33 m ones, so the head saw coarse imagery
+during training rather than meeting it for the first time at evaluation.
+
 **Where the remaining error is.** Two places, consistently across both benchmarks:
 
 * **Tall buildings.** Rotterdam's high-rise core is the worst site (16.94 m) and carries a
