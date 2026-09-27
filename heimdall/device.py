@@ -3,8 +3,13 @@ Device detection utility — single source of truth for the entire project.
 """
 
 import logging
+import os
 
 import torch
+
+# Make torch's device indices match nvidia-smi's. Without this, torch sorts by capability
+# ("fastest first"), so cuda:1 on a mixed 1080/3070/1080 box is not the card you meant.
+os.environ.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
 
 
 def get_device(preferred: str | None = None) -> torch.device:

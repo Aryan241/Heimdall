@@ -130,6 +130,12 @@ Peak training memory is essentially linear in `batch × pixels`:
 * The head is fully convolutional, so training on 256² crops and running inference on
   512² tiles is fine; only the receptive field per sample changes, not the weights.
 * The head now uses GroupNorm, so small batches behave like large ones and batch 1 works.
+* `CUDA_DEVICE_ORDER=PCI_BUS_ID` is set for you: otherwise PyTorch sorts GPUs fastest-first
+  and `--gpu 1` picks a different card than `nvidia-smi`'s GPU 1.
+
+The **multiscale** head is cheaper than the affine one (it works mostly at feature
+resolution): batch 4 @ 256² peaks at 1.9 GB and batch 2 @ 512² at 3.4 GB, measured on a
+GTX 1080 in fp32.
 
 **Inference needs 2.2 GB** (Depth Anything V2 Base + head, one 512² tile), so the deployed
 pipeline runs on any modern GPU — or on CPU, more slowly.

@@ -13,6 +13,7 @@
 # Defaults assume: cuda:0 GTX 1080, cuda:1 RTX 3070 (Ampere → mixed precision), cuda:2 GTX 1080.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+export CUDA_DEVICE_ORDER=PCI_BUS_ID   # torch indices == nvidia-smi indices
 
 # ── Notifications ────────────────────────────────────────────────────────────
 # Set HEIMDALL_NOTIFY_URL to get a push when the run finishes or dies:
