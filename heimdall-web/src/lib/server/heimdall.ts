@@ -1,5 +1,6 @@
 import 'server-only';
 import { spawn, type ChildProcess } from 'child_process';
+import { existsSync } from 'fs';
 import { mkdir, readdir, readFile, stat, writeFile } from 'fs/promises';
 import path from 'path';
 import type { JobSummary, PipelineEvent } from '@/lib/types';
@@ -15,7 +16,19 @@ export function repoRoot(): string {
 }
 
 export function pythonExe(): string {
-  if (process.env.HEIMDALL_PYTHON) return process.env.HEIMDALL_PYTHON;
+  const configured = process.env.HEIMDALL_PYTHON;
+  if (configured) {
+    // The pipeline is spawned with cwd=repoRoot, so a relative interpreter path would be
+    // resolved against the repo root rather than against wherever the server was started —
+    // `HEIMDALL_PYTHON=../venv/bin/python` from inside heimdall-web then points outside the
+    // project and the job dies with ENOENT. Anchor it to the launch directory instead, and
+    // fall back to the repo root if that misses. A bare name (e.g. "python3") is left for PATH.
+    if (path.isAbsolute(configured) || !configured.includes(SEP)) return configured;
+    const fromCwd = path.resolve(process.cwd(), configured);
+    if (existsSync(fromCwd)) return fromCwd;
+    const fromRoot = path.resolve(repoRoot(), configured);
+    return existsSync(fromRoot) ? fromRoot : fromCwd;
+  }
   const venv = [repoRoot(), 'venv'];
   return process.platform === 'win32'
     ? [...venv, 'Scripts', 'python.exe'].join(SEP)
