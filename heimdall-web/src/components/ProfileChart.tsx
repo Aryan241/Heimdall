@@ -15,8 +15,23 @@ export default function ProfileChart({ points, units }: { points: ProfilePoint[]
   hMin -= pad; hMax += pad;
   const x = (d: number) => L + (d / dMax) * (W - L - R);
   const y = (h: number) => T + (1 - (h - hMin) / (hMax - hMin)) * (H - T - B);
-  const path = valid.map((p, i) => `${i ? 'L' : 'M'}${x(p.d).toFixed(1)},${y(p.h).toFixed(1)}`).join(' ');
-  const area = `${path} L${x(valid[valid.length - 1].d)},${H - B} L${x(valid[0].d)},${H - B} Z`;
+  // Break the line wherever the surface has no data, rather than filtering the gaps out and
+  // joining across them — that would draw terrain the model never predicted.
+  const runs: ProfilePoint[][] = [];
+  let run: ProfilePoint[] = [];
+  for (const p of points) {
+    if (Number.isFinite(p.h)) run.push(p);
+    else if (run.length) { runs.push(run); run = []; }
+  }
+  if (run.length) runs.push(run);
+  const path = runs
+    .map((r) => r.map((p, i) => `${i ? 'L' : 'M'}${x(p.d).toFixed(1)},${y(p.h).toFixed(1)}`).join(' '))
+    .join(' ');
+  const area = runs
+    .filter((r) => r.length > 1)
+    .map((r) => `${r.map((p, i) => `${i ? 'L' : 'M'}${x(p.d).toFixed(1)},${y(p.h).toFixed(1)}`).join(' ')} `
+      + `L${x(r[r.length - 1].d).toFixed(1)},${H - B} L${x(r[0].d).toFixed(1)},${H - B} Z`)
+    .join(' ');
   const ticks = [hMin + pad, (hMin + hMax) / 2, hMax - pad];
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Elevation profile">

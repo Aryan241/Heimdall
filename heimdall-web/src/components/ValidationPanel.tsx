@@ -102,7 +102,13 @@ export default function ValidationPanel({ scene, canValidate }: { scene: Scene; 
       <button className="btn-secondary" disabled={!canValidate || busy} onClick={() => input.current?.click()}>
         {busy ? 'Validating…' : 'Upload reference DSM'}
       </button>
-      {!canValidate && <p className="muted small">Process an image first — the bundled demo scene is read-only.</p>}
+      {!canValidate && (
+        <p className="muted small">
+          This example scene already ships with its airborne-LiDAR reference — switch to
+          &ldquo;LiDAR truth&rdquo; above to compare against it. Process your own image to validate
+          against a reference of your choosing.
+        </p>
+      )}
       {error && <div className="error-box">{error}</div>}
 
       {report && (
@@ -127,7 +133,7 @@ export default function ValidationPanel({ scene, canValidate }: { scene: Scene; 
             <table className="metrics-table">
               <thead><tr><th>Class</th><th>RMSE</th><th>MAE</th><th>Bias</th><th>NMAD</th><th>r</th></tr></thead>
               <tbody>
-                {Object.entries(report.by_class).map(([k, m]) => <Row key={k} name={k.replace('_', ' ')} m={m} />)}
+                {Object.entries(report.by_class).map(([k, m]) => <Row key={k} name={k.replace(/_/g, ' ')} m={m} />)}
               </tbody>
             </table>
           )}
