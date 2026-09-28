@@ -189,6 +189,33 @@ but it is a research project, not an engineering task, days before a deadline.
 
 ---
 
+## Where the runs actually happened
+
+The three ablations were meant to run in parallel on a workstation with a GTX 1080, an RTX
+3070 and a second GTX 1080. Thirteen minutes into the first run the 3070 fell off the PCIe bus
+(`Xid 79`), and the driver marked every card `Node Reboot Required` (`Xid 154`). The two 1080s
+still appeared in `nvidia-smi`, but `torch.cuda.is_available()` returned `False` — so both runs
+silently fell back to CPU and kept going at roughly seventeen times slower. E1 would have taken
+78 hours. This was the third time that card had failed the same way under load.
+
+The experiments moved to three parallel Kaggle sessions on T4s. That turned out better for E2:
+a T4 has working mixed precision, so it runs the full four-block, thirty-epoch version that the
+1080 could not.
+
+All three runs are otherwise identical — same data sources, same architecture, thirty epochs,
+effective batch 36 (12 × 3 accumulation) — so each result is attributable to the single thing
+that experiment changes.
+
+| Run | The one change | Everything else |
+|---|---|---|
+| E1 | `--height-weight 0.5 --height-scale 10` | identical |
+| E2 | `--unfreeze-blocks 4 --backbone-lr 3e-5` | identical |
+| E3 | AHN 2 000 → 8 000 and 800 → 3 000 tiles | identical |
+
+Each session ends by running `scripts/benchmark_ahn.py` against **its own** checkpoint — the
+`--weights` flag added for this, without which every run would have scored the shipped model
+and produced three plausible, meaningless results.
+
 ## Results
 
 Filled in as runs complete. A run ships only if it meets the criterion stated above.
