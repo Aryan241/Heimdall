@@ -259,7 +259,6 @@ button:disabled { opacity: 0.45; cursor: not-allowed !important; }
 .metrics-table tr.row--on { background: rgba(34, 211, 238, 0.10); }
 .metrics-table tbody tr:hover { background: rgba(255, 255, 255, 0.035); }
 .compass-bearing {
-  position: absolute; left: 50%; transform: translateX(-50%); bottom: -14px;
+  display: block; margin-top: 2px; text-align: center;
   font-size: 10px; color: var(--text-2); font-variant-numeric: tabular-nums;
 }
-.viewer-compass { position: relative; }

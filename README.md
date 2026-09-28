@@ -19,7 +19,7 @@ Every run also writes an nDSM (height above ground), the terrain datum, a 16-bit
 image ─► ingest (bands, 16-bit stretch, nodata, CRS)
       ─► GSD (geotransform │ --gsd │ vehicle-size heuristic)
       ─► resample to 0.33 m/px (the training GSD of the decoder head)
-      ─► Depth Anything V2 (frozen) + trained ASPP head, 512² tiles, feathered blending
+      ─► Depth Anything V2 (frozen) + trained multi-scale decoder, 512² tiles, feathered blending
             → nDSM: height above ground (m)
       ─► object-based regularisation: colour segments → flat / pitched roofs, vertical walls;
             detected vehicles mark ground (parking lots stay flat)            (--no-refine to skip)
@@ -37,23 +37,48 @@ image ─► ingest (bands, 16-bit stretch, nodata, CRS)
 
 ---
 
-## Quick start
+## Running it locally
+
+**One command.** From a fresh clone, on macOS or Linux:
 
 ```bash
-./run.sh            # first run: creates venv, installs deps, downloads models, builds the web app
-                    # then serves http://localhost:3000
+./run.sh                     # → http://localhost:3000
+PORT=8080 ./run.sh           # if 3000 is taken
 ```
 
-Manual setup:
+The first run creates the virtualenv, installs the Python dependencies, downloads the model
+weights, installs the web dependencies and builds the app — 10–20 minutes and roughly 6 GB,
+mostly PyTorch. Later runs start in seconds. It opens your browser automatically.
+
+**Prerequisites:** Python 3.10+ and Node 20+. A GPU is optional — everything runs on CPU, just
+slower (a 600 m scene takes about a minute rather than seconds).
+
+**What you can do once it is up:** the three bundled scenes each ship beside their
+airborne-LiDAR twin, so you can fly the reconstruction and the measurement back to back; the
+**Accuracy** tab carries every measured figure; and you can upload your own GeoTIFF, PNG or JPG
+and validate the result against your own reference raster.
+
+<details>
+<summary>Manual setup, if you would rather run the steps yourself</summary>
 
 ```bash
 python3 -m venv venv && source venv/bin/activate
 pip install torch torchvision            # see INSTALL_PYTORCH.md for CUDA builds
 pip install -r requirements.txt
-python scripts/prefetch_models.py        # DA3 + YOLO weights (then HF_HUB_OFFLINE=1 works)
+python scripts/prefetch_models.py        # Depth Anything V2 + YOLO (then HF_HUB_OFFLINE=1 works)
 
-cd heimdall-web && npm ci && npm run build && npm start
+cd heimdall-web && npm ci && npm run build
+# The app is built as a standalone server bundle, which Next deliberately ships without its
+# static assets, so stage them alongside it. `next start` does not support this output mode.
+mkdir -p .next/standalone/.next
+cp -R .next/static .next/standalone/.next/static
+cp -R public .next/standalone/public
+HEIMDALL_ROOT="$(cd .. && pwd)" HEIMDALL_PYTHON="$(cd .. && pwd)/venv/bin/python" \
+  PORT=3000 node .next/standalone/server.js
 ```
+
+`run.sh` does exactly this; the manual form is here so the steps are inspectable.
+</details>
 
 Docker (bakes all model weights in; runs offline):
 
@@ -143,7 +168,7 @@ heimdall/               pipeline package
   pipeline.py           end-to-end orchestration (used by CLI, web app, evaluators)
   ingestion/            loading (bands, 16-bit, nodata) and tiling (feathered blending)
   depth/                Depth Anything V2/V3 wrappers
-  decoder/              ASPP head, loss, dataset, inference
+  decoder/              multi-scale decoder head, loss, dataset, inference
   calibration/          DEM fetch/reprojection, GCPs, RANSAC, GSD heuristic
   mesh/ output/ eval/   textured GLB, writers, metrics + DSM comparison
 depth_anything_3/       bundled Depth Anything V3 code
