@@ -2,17 +2,14 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { Html, Line, OrbitControls, useGLTF, useProgress, useTexture } from '@react-three/drei';
+import { Html, Line, OrbitControls, useGLTF, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
 import ProfileChart from '@/components/ProfileChart';
 import type { Scene } from '@/lib/types';
 import {
-  NODATA, buildGeometryFromGrid, cssGradient, floodStats, fmt, localToCrs, localToLatLon, profile,
-  sampleAt, slopeColor, turbo, valueToY, type TerrainGrid,
+  NODATA, cssGradient, floodStats, fmt, localToCrs, localToLatLon, profile, sampleAt, slopeColor, turbo,
+  valueToY, type TerrainGrid,
 } from '@/lib/terrain';
-
-/** Set only for the deployed static demo, where scene assets travel over the network. */
-const LIGHT_GEOMETRY = process.env.NEXT_PUBLIC_STATIC_DEMO === '1';
 
 type Mode = 'orbit' | 'measure' | 'fly';
 type Layer = 'optical' | 'elevation' | 'agl' | 'slope';
@@ -32,61 +29,6 @@ function Loading() {
     <Html center>
       <div className="viewer-loading">Loading terrain… {progress.toFixed(0)}%</div>
     </Html>
-  );
-}
-
-/* ─── Terrain mesh, rebuilt from the height grid (public static demo only) ── */
-function TerrainFromGrid({
-  textureUrl, grid, onHover, onPick,
-}: {
-  textureUrl: string;
-  grid: TerrainGrid;
-  onHover: (p: THREE.Vector3 | null) => void;
-  onPick: (p: THREE.Vector3) => void;
-}) {
-  const map = useTexture(textureUrl);
-  const geometry = useMemo(() => {
-    const { positions, uvs, indices } = buildGeometryFromGrid(grid);
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-    geo.setIndex(new THREE.BufferAttribute(indices, 1));
-    geo.computeBoundingSphere();
-    // Deliberately no computeVertexNormals(): the exported GLB ships without normals, so glTF
-    // renders it flat. Averaged vertex normals would smooth every roof edge into a curve.
-    return geo;
-  }, [grid]);
-
-  const material = useMemo(() => {
-    // Clone first — the loader caches textures, so configuring the original would leak into
-    // every other scene sharing the file.
-    const tex = map.clone();
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = 8;
-    tex.flipY = false;                       // glTF convention, matching the exported mesh
-    tex.needsUpdate = true;
-    const mat = new THREE.MeshStandardMaterial({
-      map: tex, side: THREE.DoubleSide, roughness: 1, metalness: 0, flatShading: true,
-    });
-    mat.onBeforeCompile = (shader) => {
-      shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', '#include <common>\nvarying vec3 vWorldNormalH;')
-        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vWorldNormalH = normalize(mat3(modelMatrix) * objectNormal);');
-      shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying vec3 vWorldNormalH;')
-        .replace('#include <map_fragment>', `#include <map_fragment>
-          float wallness = smoothstep(0.55, 0.18, abs(vWorldNormalH.y));
-          vec3 wallTone = vec3(dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114))) * 0.82;
-          diffuseColor.rgb = mix(diffuseColor.rgb, wallTone, wallness * 0.85);`);
-    };
-    return mat;
-  }, [map]);
-
-  return (
-    <mesh geometry={geometry} material={material} castShadow receiveShadow
-      onPointerMove={(e: ThreeEvent<PointerEvent>) => { e.stopPropagation(); onHover(e.point.clone()); }}
-      onPointerOut={() => onHover(null)}
-      onClick={(e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); if (e.delta < 4) onPick(e.point.clone()); }} />
   );
 }
 
@@ -354,10 +296,6 @@ export default function TerrainViewer({ scene, grid }: { scene: Scene; grid: Ter
   const snap = useRef<(() => string) | null>(null);
 
   const meshUrl = scene.baseUrl + meta.files.mesh;
-  const textureUrl = scene.baseUrl + meta.files.texture;
-  // Over the network the GLB is ~12.6 MB of which 8.4 MB is derivable from the grid we
-  // already fetch. Locally there is nothing to gain, so only the public demo rebuilds it.
-  const rebuildFromGrid = LIGHT_GEOMETRY && layer === 'optical';
   const sStats = grid?.stats.surface;
   const floodLevel = level ?? (sStats ? sStats.p02 + (sStats.p98 - sStats.p02) * 0.15 : 0);
   const floodInfo = useMemo(() => (grid && flood ? floodStats(grid, floodLevel) : null), [grid, flood, floodLevel]);
@@ -574,9 +512,7 @@ export default function TerrainViewer({ scene, grid }: { scene: Scene; grid: Ter
         {grid && (
           <Suspense fallback={<Loading />}>
             <group scale={[1, exaggeration, 1]}>
-              {rebuildFromGrid
-                ? <TerrainFromGrid textureUrl={textureUrl} grid={grid} onHover={onHover} onPick={onPick} />
-                : <Terrain url={meshUrl} grid={grid} layer={layer} onHover={onHover} onPick={onPick} />}
+              <Terrain url={meshUrl} grid={grid} layer={layer} onHover={onHover} onPick={onPick} />
               {flood && <Water grid={grid} level={floodLevel} />}
             </group>
             <FitCamera grid={grid} resetKey={resetKey} />
