@@ -37,7 +37,9 @@ def main() -> int:
             print(f"→ {name}")
             urllib.request.urlretrieve(url, REPO / name)
 
-    head = REPO / "checkpoints" / "decoder" / "decoder_best_all.pth"
+    # The shipped head; decoder_best_all.pth is the superseded one kept only so the
+    # before/after comparison in the report can be reproduced.
+    head = REPO / "checkpoints" / "decoder" / "decoder_best.pth"
     print(f"Decoder head: {'OK' if head.exists() else 'MISSING — relative mode only'} ({head})")
     print("Done. Set HF_HUB_OFFLINE=1 to run without network access.")
     return 0
