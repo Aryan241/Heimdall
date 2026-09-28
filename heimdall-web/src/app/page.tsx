@@ -53,6 +53,10 @@ const BUNDLED_SCENES: { id: string; label: string; note: string }[] = [
   { id: 'valkenburg_hills', label: 'Valkenburg — hills', note: '3.00 m RMSE · r 0.70 vs LiDAR' },
 ];
 
+/** Set at build time for the public demo: there is no Python backend behind a static export,
+ *  so the upload and job panels are replaced with a note rather than left there to fail. */
+const STATIC_DEMO = process.env.NEXT_PUBLIC_STATIC_DEMO === '1';
+
 const sceneUrl = (id: string) => ({ base: `/${id}/`, meta: `${id}_meta.json` });
 
 export default function Home() {
@@ -97,6 +101,7 @@ export default function Home() {
   }, []);
 
   const refreshJobs = useCallback(async () => {
+    if (STATIC_DEMO) return;
     try {
       const res = await fetch('/api/jobs');
       if (res.ok) setJobs((await res.json()).jobs ?? []);
@@ -217,7 +222,8 @@ export default function Home() {
     <div className="app">
       <header className="header">
         <div className="brand">
-          <span className="logo-mark" aria-hidden>◆</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="logo-mark" src="/logo-192.png" alt="" width={38} height={38} aria-hidden />
           <div>
             <div className="logo text-gradient">HEIMDALL</div>
             <div className="header-subtitle">Single-view height estimation &amp; 3D flythrough</div>
@@ -239,7 +245,23 @@ export default function Home() {
 
       <main className="layout">
         <aside className="sidebar">
-          {/* ── New job ── */}
+          {/* ── New job (hidden in the static public demo, which has no backend) ── */}
+          {STATIC_DEMO ? (
+            <section className="panel">
+              <h3 className="panel-heading">About this demo</h3>
+              <p className="muted small">
+                A read-only deployment. The scenes are pre-computed, and the 3D viewer, measurement
+                tools, layer switching and the Accuracy tab are all fully live — everything except
+                processing your own imagery, which needs the PyTorch pipeline running server-side.
+              </p>
+              <p className="muted small">
+                To process your own image, run it locally with <code>./run.sh</code> or the bundled
+                Docker image. Source:{' '}
+                <a href="https://github.com/Aryan241/Heimdall" target="_blank" rel="noreferrer">
+                  github.com/Aryan241/Heimdall</a>.
+              </p>
+            </section>
+          ) : (
           <section className="panel">
             <h3 className="panel-heading">New processing job</h3>
             <input ref={imgInput} type="file" hidden accept=".png,.jpg,.jpeg,.tif,.tiff,.bmp"
@@ -318,6 +340,7 @@ export default function Home() {
             )}
             {error && <div className="error-box"><strong>Error:</strong> {error}</div>}
           </section>
+          )}
 
           {/* ── Progress ── */}
           {(running || progress.done.size > 0 || error) && (
@@ -439,9 +462,9 @@ export default function Home() {
             )}
           </section>
 
-          {scene && <ValidationPanel key={scene.id} scene={scene} canValidate={!meta?.comparison} />}
+          {scene && !STATIC_DEMO && <ValidationPanel key={scene.id} scene={scene} canValidate={!meta?.comparison} />}
 
-          {jobs.length > 0 && (
+          {!STATIC_DEMO && jobs.length > 0 && (
             <section className="panel">
               <h3 className="panel-heading">Recent jobs</h3>
               <ul className="jobs">
