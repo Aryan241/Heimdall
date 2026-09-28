@@ -44,12 +44,12 @@
   "calibration": {
     "refinement": {
       "method": "segment-wise planar regularisation",
-      "segments": 2671,
-      "built_surfaces": 690,
-      "pitched": 114,
-      "vegetation_objects": 557,
-      "bimodal_splits": 934,
-      "merged_pairs": 175,
+      "segments": 2681,
+      "built_surfaces": 684,
+      "pitched": 108,
+      "vegetation_objects": 555,
+      "bimodal_splits": 938,
+      "merged_pairs": 174,
       "vehicles": 0,
       "segments_grounded_by_vehicles": 0
     },
@@ -98,7 +98,7 @@
     ],
     "width_m": 599.94,
     "depth_m": 599.94,
-    "height_offset": 2.7537035942077637,
+    "height_offset": 2.7512552738189697,
     "grid_layers": [
       "surface",
       "ndsm",
@@ -118,12 +118,12 @@
   },
   "warnings": [],
   "timings_s": {
-    "ingest": 0.18,
-    "depth": 53.6,
-    "calibration": 0.4,
-    "outputs": 2.88,
-    "mesh": 0.87,
-    "total": 58.18
+    "ingest": 0.1,
+    "depth": 21.06,
+    "calibration": 0.19,
+    "outputs": 1.51,
+    "mesh": 0.54,
+    "total": 23.53
   },
   "config": {
     "input": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/outputs/demo_sites/utrecht_suburb/ortho_0.25m.tif",
@@ -140,7 +140,7 @@
     "max_side": 8192,
     "tile_size": 512,
     "overlap": 128,
-    "tta": true,
+    "tta": false,
     "refine": true,
     "band_order": null,
     "export_mesh": true,
@@ -159,13 +159,13 @@
     "reference": "AHN airborne LiDAR (0.5 m), height above ground",
     "held_out": true,
     "metrics": {
-      "rmse": 2.920243324308511,
-      "mae": 1.8921951142827407,
-      "bias": -1.0457302007698144,
-      "nmad": 1.4838324942469596,
-      "le90": 5.008964347839357,
-      "pearson_r": 0.7691490648169671,
-      "r2": 0.49581622028608485
+      "rmse": 2.901823491007163,
+      "mae": 1.887208009794295,
+      "bias": -1.006463090003521,
+      "nmad": 1.4905866678804158,
+      "le90": 4.9741927862167366,
+      "pearson_r": 0.766985898797513,
+      "r2": 0.5021565766857858
     },
     "predict_zero_rmse": 5.385358129811973,
     "truth_scene": "utrecht_suburb-truth",

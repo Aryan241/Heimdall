@@ -44,12 +44,12 @@
   "calibration": {
     "refinement": {
       "method": "segment-wise planar regularisation",
-      "segments": 1749,
-      "built_surfaces": 243,
-      "pitched": 40,
-      "vegetation_objects": 457,
-      "bimodal_splits": 405,
-      "merged_pairs": 32,
+      "segments": 1761,
+      "built_surfaces": 248,
+      "pitched": 41,
+      "vegetation_objects": 459,
+      "bimodal_splits": 409,
+      "merged_pairs": 29,
       "vehicles": 9,
       "segments_grounded_by_vehicles": 5
     },
@@ -98,7 +98,7 @@
     ],
     "width_m": 599.94,
     "depth_m": 599.94,
-    "height_offset": 68.59159088134766,
+    "height_offset": 68.591552734375,
     "grid_layers": [
       "surface",
       "ndsm",
@@ -118,12 +118,12 @@
   },
   "warnings": [],
   "timings_s": {
-    "ingest": 0.16,
-    "depth": 56.71,
-    "calibration": 7.87,
-    "outputs": 2.75,
-    "mesh": 0.87,
-    "total": 68.59
+    "ingest": 0.09,
+    "depth": 20.31,
+    "calibration": 0.18,
+    "outputs": 1.42,
+    "mesh": 0.47,
+    "total": 22.61
   },
   "config": {
     "input": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/outputs/demo_sites/valkenburg_hills/ortho_0.25m.tif",
@@ -140,7 +140,7 @@
     "max_side": 8192,
     "tile_size": 512,
     "overlap": 128,
-    "tta": true,
+    "tta": false,
     "refine": true,
     "band_order": null,
     "export_mesh": true,
@@ -159,13 +159,13 @@
     "reference": "AHN airborne LiDAR (0.5 m), height above ground",
     "held_out": true,
     "metrics": {
-      "rmse": 2.9997437501805813,
-      "mae": 1.5249995953500406,
-      "bias": -0.7664633364525733,
-      "nmad": 0.4928286882876991,
-      "le90": 4.766596603393564,
-      "pearson_r": 0.7028977828303883,
-      "r2": 0.43148878529098933
+      "rmse": 2.9826960972169116,
+      "mae": 1.5202360620574484,
+      "bias": -0.7531934609597963,
+      "nmad": 0.503491504863976,
+      "le90": 4.755465984344483,
+      "pearson_r": 0.706813507128482,
+      "r2": 0.43793216400893675
     },
     "predict_zero_rmse": 4.614269751963073,
     "truth_scene": "valkenburg_hills-truth",

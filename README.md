@@ -83,7 +83,8 @@ python infer.py -i cartosat_mx.tif --bands 3,2,1
 # Evaluate with and without roof/wall regularisation to measure its effect
 #   python eval.py ... --refine
 
-# Higher quality (flip test-time augmentation, ~2× slower)
+# Flip/rotate test-time augmentation. Measured on two benchmark sites it changes accuracy by
+# under 0.02 m (slightly worse, not better) for 2.3x the runtime, so it is off by default.
 python infer.py -i scene.tif --tta
 ```
 

@@ -48,9 +48,9 @@ interface Progress {
 /** Scenes shipped with the app. The benchmark pairs each have a LiDAR twin built by
  *  `scripts/build_demo_site.py`, so a reconstruction can be compared against measured truth. */
 const BUNDLED_SCENES: { id: string; label: string; note: string }[] = [
-  { id: 'utrecht_suburb', label: 'Utrecht — suburban', note: '2.49 m RMSE · r 0.78 vs LiDAR' },
-  { id: 'veluwe_forest', label: 'Veluwe — forest', note: '2.26 m RMSE · r 0.79 vs LiDAR' },
-  { id: 'valkenburg_hills', label: 'Valkenburg — hills', note: '3.00 m RMSE · r 0.70 vs LiDAR' },
+  { id: 'utrecht_suburb', label: 'Utrecht — suburban', note: '2.90 m RMSE · r 0.77 vs LiDAR' },
+  { id: 'veluwe_forest', label: 'Veluwe — forest', note: '2.18 m RMSE · r 0.79 vs LiDAR' },
+  { id: 'valkenburg_hills', label: 'Valkenburg — hills', note: '2.98 m RMSE · r 0.71 vs LiDAR' },
 ];
 
 /** Set at build time for the public demo: there is no Python backend behind a static export,
@@ -433,6 +433,8 @@ export default function Home() {
               <>
                 <p className="muted small" style={{ marginTop: 10 }}>
                   Same place, same grid, same texture — only the heights differ. Fly through both and compare.
+                  These scenes cover 600 m; the Accuracy tab scores the same sites over 400 m, so the two
+                  sets of figures differ slightly by extent.
                 </p>
                 <div className="seg" style={{ marginTop: 8 }}>
                   {([['model', comparison.model_scene, 'Heimdall'],

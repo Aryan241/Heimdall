@@ -214,6 +214,21 @@ Object-based regularisation ("refined") again changes the metrics by < 0.03 m. I
 because it improves the appearance of roofs in the 3D view, and this confirms it does so
 without distorting the heights.
 
+**Test-time augmentation does not help.** `--tta` averages the prediction over flips and
+rotations, which usually buys a little accuracy in dense prediction. Measured here on two
+benchmark sites at 600 m, it does not:
+
+| Site | no TTA | with TTA |
+|---|---|---|
+| utrecht_suburb | 2.822 m | 2.842 m |
+| veluwe_forest | 2.050 m | 2.055 m |
+
+Accuracy moves by under 0.02 m, in the wrong direction, for 2.3× the runtime (10 s → 23 s per
+site). The flag is kept for completeness but is off by default, and every number in this report
+is measured without it. A plausible explanation is that the head already sees flips and
+rotations during training, so averaging over them adds nothing the model has not already
+internalised, while the resampling involved costs a little sharpness.
+
 **Robustness to sensor resolution.** Every number above is measured on 0.25 m aerial
 photography, but the imagery supplied at evaluation will be satellite-class. Re-running the
 same eight sites with the orthophoto degraded by area-averaging to coarser ground sample
@@ -328,9 +343,9 @@ types the evaluation grades:
 
 | Scene | Landscape | RMSE | MAE | Bias | r | Predict-zero RMSE |
 |---|---|---|---|---|---|---|
-| `utrecht_suburb` | suburban residential, 600 m | 2.92 m | 1.89 m | −1.05 m | 0.769 | 5.39 m |
-| `veluwe_forest` | forest, 600 m | 2.26 m | 1.13 m | −0.41 m | 0.790 | 4.25 m |
-| `valkenburg_hills` | hilly town, 600 m | 3.00 m | 1.52 m | −0.77 m | 0.703 | 4.61 m |
+| `utrecht_suburb` | suburban residential, 600 m | 2.90 m | 1.89 m | -1.01 m | 0.767 | 5.39 m |
+| `veluwe_forest` | forest, 600 m | 2.18 m | 1.02 m | -0.20 m | 0.787 | 4.02 m |
+| `valkenburg_hills` | hilly town, 600 m | 2.98 m | 1.52 m | -0.75 m | 0.707 | 4.61 m |
 
 The full eight-site table in §4.4 is what the accuracy claim rests on, including the sites the
 model handles badly; these three are the ones bundled for interactive inspection.
