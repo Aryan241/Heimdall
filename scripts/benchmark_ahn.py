@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import shutil
 import sys
 import time
 import urllib.request
@@ -54,17 +55,32 @@ WMS = ("https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0?service=WMS&version=1.
 log = logging.getLogger("benchmark")
 
 
-def _get(url: str, dst: Path) -> Path:
-    if not dst.exists():
-        for attempt in range(3):
-            try:
-                urllib.request.urlretrieve(url, dst)
-                break
-            except Exception:
-                if attempt == 2:
-                    raise
-                time.sleep(2)
-    return dst
+def _get(url: str, dst: Path, timeout: float = 120.0, tries: int = 3) -> Path:
+    """Download *url* to *dst*, cached. Fails loudly rather than hanging or caching a stub.
+
+    urlretrieve has no timeout of its own, so a stalled PDOK connection blocks the whole
+    benchmark indefinitely; and writing straight to *dst* means an interrupted download leaves
+    a truncated file that the next run treats as a complete cache hit.
+    """
+    if dst.exists() and dst.stat().st_size > 0:
+        return dst
+    tmp = dst.with_suffix(dst.suffix + ".part")
+    last: Exception | None = None
+    for attempt in range(tries):
+        try:
+            with urllib.request.urlopen(url, timeout=timeout) as r, open(tmp, "wb") as fh:
+                shutil.copyfileobj(r, fh)
+            if tmp.stat().st_size == 0:
+                raise OSError("empty response")
+            tmp.replace(dst)
+            return dst
+        except Exception as exc:
+            last = exc
+            tmp.unlink(missing_ok=True)
+            log.warning("download failed (%s/%s): %s", attempt + 1, tries, exc)
+            if attempt < tries - 1:
+                time.sleep(2 + 3 * attempt)
+    raise RuntimeError(f"could not download {url}") from last
 
 
 def fetch_site(name: str, x0: int, y0: int, size: int, root: Path, layer: str) -> dict[str, Path]:

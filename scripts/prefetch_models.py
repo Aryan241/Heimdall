@@ -30,12 +30,25 @@ def main() -> int:
         print(f"→ {r}")
         snapshot_download(r)
 
+    import shutil
     import urllib.request
     for name, url in [("yolov8n.pt", "https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.pt"),
                       ("yolov8n-obb.pt", "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8n-obb.pt")]:
-        if not (REPO / name).exists():
-            print(f"→ {name}")
-            urllib.request.urlretrieve(url, REPO / name)
+        dst = REPO / name
+        if dst.exists() and dst.stat().st_size > 0:
+            continue
+        print(f"→ {name}")
+        # A timeout and a temp file: urlretrieve has neither, so a stalled connection would hang
+        # the first run of run.sh forever, and an interrupted one would leave a stub that later
+        # runs treat as already downloaded.
+        tmp = dst.with_suffix(dst.suffix + ".part")
+        try:
+            with urllib.request.urlopen(url, timeout=120) as r, open(tmp, "wb") as fh:
+                shutil.copyfileobj(r, fh)
+            tmp.replace(dst)
+        except Exception as exc:
+            tmp.unlink(missing_ok=True)
+            print(f"  could not fetch {name}: {exc} — the vehicle ground prior will be skipped")
 
     # The shipped head; decoder_best_all.pth is the superseded one kept only so the
     # before/after comparison in the report can be reproduced.
