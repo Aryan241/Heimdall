@@ -4,7 +4,7 @@ Heimdall end-to-end pipeline (shared by the CLI, the web app and the evaluators)
     image ─► ingest ─► GSD ─► resample to working GSD ─► height estimation ─► calibration ─► outputs ─► mesh
 
 Height estimation
-  * "head"     — frozen Depth Anything V3 + trained ASPP head → nDSM (metres above ground).
+  * "head"     — frozen Depth Anything backbone + trained decoder head → nDSM (metres above ground).
                  Imagery is resampled to the training GSD (0.33 m) and tiled at 512² exactly
                  as during training. The nDSM is then regularised object-by-object (flat /
                  pitched roofs, vertical walls; see heimdall.refine).
@@ -170,7 +170,7 @@ def run(cfg: PipelineConfig) -> PipelineResult:
     model_key = cfg.model_key
     if head_mode:
         from heimdall.decoder.model import load_wrapper, predict_ndsm
-        say("stage", stage="depth", message="Loading Depth Anything V3 + Heimdall head")
+        say("stage", stage="depth", message="Loading the depth backbone and Heimdall head")
         wrapper = load_wrapper(cfg.weights, device, model_key=model_key)
         model_key = wrapper.model_key
         if model_key.startswith("da3"):

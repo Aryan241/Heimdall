@@ -395,7 +395,7 @@ export default function Home() {
                 <dt>Input</dt><dd>{meta.kind === 'georeferenced' ? `GeoTIFF · EPSG:${meta.crs_epsg ?? '?'}` : 'Plain image'} · {meta.native_shape[1]}×{meta.native_shape[0]} px</dd>
                 <dt>GSD</dt><dd>{fmt(meta.gsd.native_m, 3)} m/px native ({meta.gsd.source})</dd>
                 {meta.center_latlon && <><dt>Centre</dt><dd>{meta.center_latlon[0].toFixed(5)}°, {meta.center_latlon[1].toFixed(5)}°</dd></>}
-                <dt>Model</dt><dd>{meta.mode === 'head' ? `Depth Anything V3 + Heimdall head (${meta.weights})` : `${meta.model} (relative)`}</dd>
+                <dt>Model</dt><dd>{meta.mode === 'head' ? `${meta.model ?? 'backbone'} + Heimdall head (${meta.weights})` : `${meta.model} (relative)`}</dd>
                 <dt>Calibration</dt><dd>{meta.calibration.method ?? 'none'}{meta.calibration.terrain_source ? ` · ${meta.calibration.terrain_source}` : ''}</dd>
                 {meta.calibration.gcp && <><dt>GCPs</dt><dd>{meta.calibration.gcp.used} used ({meta.calibration.gcp.model}) · RMSE {fmt(meta.calibration.gcp.rmse_before_m)} → {fmt(meta.calibration.gcp.rmse_after_m)} m</dd></>}
                 <dt>Runtime</dt><dd>{fmt(meta.timings_s.total, 1)} s</dd>
