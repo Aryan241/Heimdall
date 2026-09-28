@@ -153,3 +153,17 @@ def test_hillshade_handles_single_pixel():
     from heimdall.output.writers import hillshade
 
     assert hillshade(np.array([[5.0]]), gsd=0.33).shape == (1, 1)
+
+
+def test_documentation_figures_match_measurements():
+    """The report's tables must still match the JSON they were generated from."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[1]
+    if not (repo / "outputs" / "gamus_test.json").exists():
+        pytest.skip("measured outputs not present in this checkout")
+    r = subprocess.run([sys.executable, str(repo / "scripts" / "check_report_numbers.py")],
+                       capture_output=True, text=True, cwd=repo)
+    assert r.returncode == 0, f"documentation has drifted from the measurements:\n{r.stdout}"
