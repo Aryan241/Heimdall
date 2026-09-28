@@ -172,6 +172,9 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=REPO / "outputs" / "benchmark_ahn")
     ap.add_argument("--no-refine-compare", action="store_true", help="Only run the default (refined) pipeline.")
     ap.add_argument("--tta", action="store_true")
+    ap.add_argument("--weights", type=Path, default=None,
+                    help="Decoder checkpoint to score. Defaults to the shipped one. Pass this when "
+                         "benchmarking a training run, or the numbers describe the shipped model.")
     args = ap.parse_args()
     logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     log.setLevel(logging.INFO)
@@ -191,13 +194,19 @@ def main() -> int:
                 tag = f"{name}_{gsd:g}m_{vname}"
                 run_dir = args.out / "runs" / tag
                 t0 = time.time()
-                res = run(PipelineConfig(input=img, output_dir=run_dir, name="pred", refine=refine,
-                                         export_mesh=False, events=False, tta=args.tta))
+                cfg = PipelineConfig(input=img, output_dir=run_dir, name="pred", refine=refine,
+                                     export_mesh=False, events=False, tta=args.tta)
+                if args.weights:
+                    cfg.weights = str(args.weights)
+                res = run(cfg)
                 files = res.files
                 ndsm_file = run_dir / files.get("ndsm", files["dsm"])
                 s_ndsm, pred, ref = score(ndsm_file, site["ndsm"], img)
                 entry = {"site": name, "kind": kind, "gsd": gsd, "variant": vname,
                          "product": res.product, "seconds": round(time.time() - t0, 1),
+                         # Which checkpoint produced this, so a result can never be read as
+                         # belonging to a model that did not generate it.
+                         "weights": Path(cfg.weights).name if cfg.weights else None,
                          "ndsm": s_ndsm}
                 if res.product == "absolute_dsm":
                     s_dsm, *_ = score(run_dir / files["dsm"], site["dsm"], img)
