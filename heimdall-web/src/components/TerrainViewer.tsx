@@ -246,6 +246,25 @@ function ScaleProbe({ onChange }: { onChange: (v: number) => void }) {
   return null;
 }
 
+/* ─── Camera heading, so the compass tells the truth ──────────────────── */
+function NorthProbe({ onChange }: { onChange: (deg: number) => void }) {
+  const last = useRef(999);
+  useFrame((state) => {
+    const cam = state.camera;
+    // Scene axes follow the raster: +x east, +z south, so -z is north. The heading is the
+    // bearing the camera looks along, measured clockwise from north.
+    const dir = new THREE.Vector3();
+    cam.getWorldDirection(dir);
+    if (Math.abs(dir.x) < 1e-9 && Math.abs(dir.z) < 1e-9) return;  // looking straight down
+    const deg = (Math.atan2(dir.x, -dir.z) * 180) / Math.PI;
+    if (Math.abs(deg - last.current) > 0.5) {
+      last.current = deg;
+      onChange(deg);
+    }
+  });
+  return null;
+}
+
 /* ─── Screenshot helper ───────────────────────────────────────────────── */
 function Capture({ onReady }: { onReady: (fn: () => string) => void }) {
   const { gl, scene, camera } = useThree();
@@ -273,6 +292,7 @@ export default function TerrainViewer({ scene, grid }: { scene: Scene; grid: Ter
   const [hover, setHover] = useState<Hover | null>(null);
   const [points, setPoints] = useState<THREE.Vector3[]>([]);
   const [resetKey, setResetKey] = useState(0);
+  const [heading, setHeading] = useState(0);
   const snap = useRef<(() => string) | null>(null);
 
   const meshUrl = scene.baseUrl + meta.files.mesh;
@@ -452,13 +472,16 @@ export default function TerrainViewer({ scene, grid }: { scene: Scene; grid: Ter
       )}
 
       {grid && (
-        <div className="viewer-compass" aria-label="North indicator">
+        <div className="viewer-compass" aria-label={`North indicator, view bearing ${Math.round((heading + 360) % 360)} degrees`}>
           <svg width="46" height="46" viewBox="0 0 46 46">
             <circle cx="23" cy="23" r="20" fill="rgba(8,11,17,0.75)" stroke="rgba(255,255,255,0.15)" />
-            <polygon points="23,7 28,25 23,21 18,25" fill="#f87171" />
-            <polygon points="23,39 18,21 23,25 28,21" fill="#cbd5e1" />
-            <text x="23" y="6" fontSize="7" fill="#cbd5e1" textAnchor="middle">N</text>
+            <g transform={`rotate(${-heading} 23 23)`}>
+              <polygon points="23,7 28,25 23,21 18,25" fill="#f87171" />
+              <polygon points="23,39 18,21 23,25 28,21" fill="#cbd5e1" />
+              <text x="23" y="6" fontSize="7" fill="#cbd5e1" textAnchor="middle">N</text>
+            </g>
           </svg>
+          <span className="compass-bearing">{Math.round((heading + 360) % 360)}°</span>
         </div>
       )}
 
@@ -510,6 +533,7 @@ export default function TerrainViewer({ scene, grid }: { scene: Scene; grid: Ter
         )}
         {grid && <FlyControls active={mode === 'fly'} grid={grid} exaggeration={exaggeration} />}
         <ScaleProbe onChange={setPxPerMetre} />
+        <NorthProbe onChange={setHeading} />
         <Capture onReady={(fn) => { snap.current = fn; }} />
       </Canvas>
     </div>

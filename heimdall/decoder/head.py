@@ -29,7 +29,7 @@ def _norm(channels: int, kind: str = "group") -> nn.Module:
 
 class ASPP(nn.Module):
     """Atrous Spatial Pyramid Pooling module for multi-scale context aggregation."""
-    def __init__(self, in_channels: int, out_channels: int, dilations: list[int] = [1, 6, 12, 18],
+    def __init__(self, in_channels: int, out_channels: int, dilations: tuple[int, ...] = (1, 6, 12, 18),
                  norm: str = "group"):
         super().__init__()
         

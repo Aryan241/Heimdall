@@ -52,8 +52,13 @@ class DomainAdaptationWrapper(nn.Module):
             from heimdall.depth.depth_anything import MODEL_REGISTRY
             try:
                 feat_ch = AutoConfig.from_pretrained(MODEL_REGISTRY[model_key]).fusion_hidden_size
-            except Exception:
-                pass
+            except Exception as exc:
+                # Offline, or the config could not be read. The default suits vit-b; for a wider
+                # backbone the head would be built at the wrong width and the checkpoint would
+                # then fail to load, so say why rather than failing mutely later.
+                logger.warning("Could not read %s's fusion width (%s); assuming %d. Pass the right "
+                               "backbone with --model if the checkpoint fails to load.",
+                               model_key, type(exc).__name__, feat_ch)
         self.feature_channels = feat_ch
         self.head = (MultiScaleHeightHead(feature_channels=feat_ch) if head == "multiscale"
                      else DomainAdaptationHead(in_channels=4, hidden_dim=128, norm=norm))
