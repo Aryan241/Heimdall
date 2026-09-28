@@ -152,6 +152,30 @@ evidence for an accuracy gain is absent. Not worth the trade.
 **Test-time augmentation.** Already measured: 0.02 m *worse* for 2.3× the runtime. Rejected on
 evidence, documented in the report.
 
+**Semantic priors for water and roads (considered as E4, rejected).** Water is perfectly flat
+at a known level and we predict it 0.91 m *above* ground, so clamping it looked like free
+accuracy. Two measurements killed it:
+
+* SegFormer (ADE20K) is as domain-mismatched as the COCO detector was. On a nadir harbour scene
+  it labels **35% of the image "sky"** and only 22% "sea", against a ground truth of 19% of
+  pixels below 0.5 m. Building a prior on that would inject noise, not remove it.
+* Even a *perfect* water prior is worth almost nothing. Ranking each class by its contribution
+  to total squared error:
+
+| Class | Pixels | RMSE | Bias | Share of squared error |
+|---|---|---|---|---|
+| Building | 69.2 M | 7.27 m | −2.47 m | **48.8%** |
+| Tree | 60.4 M | 6.85 m | −3.98 m | **37.8%** |
+| Ground | 82.7 M | 2.24 m | −0.06 m | 5.5% |
+| Road | 66.7 M | 2.34 m | −0.23 m | 4.9% |
+| Low vegetation | 65.3 M | 1.71 m | +0.36 m | 2.6% |
+| Water | 6.9 M | 2.31 m | +0.91 m | **0.5%** |
+
+Buildings and trees together are **87%** of the error. Water is 0.5%, and roads and ground are
+already near-unbiased. A rule-based prior for the flat classes optimises the 13% we have
+largely solved, at the risk of visible false positives — flattening a dark roof to ground level
+looks far worse than being 0.9 m high on a canal. Effort belongs on buildings, which is E1.
+
 **Shadow-length features.** The most principled route to absolute height from one nadir view,
 but it is a research project, not an engineering task, days before a deadline.
 
