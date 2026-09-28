@@ -23,7 +23,10 @@ huggingface_hub
 addict
 imageio
 opencv-python-headless>=4.8
-e3nn>=0.5
+# e3nn is only needed to rotate spherical-harmonic coefficients in Depth Anything V3, which
+# the default pipeline never does; depth_anything_3/utils/sh_helpers.py degrades gracefully
+# without it. Install it explicitly if you use DA3's Gaussian outputs.
+# e3nn>=0.5
 
 # ---------- Geospatial ----------
 rasterio>=1.3
