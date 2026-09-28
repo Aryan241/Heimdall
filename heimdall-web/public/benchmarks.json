@@ -3,7 +3,7 @@
   "model": {
     "backbone": "Depth Anything V2 Base (frozen)",
     "head": "multi-scale DPT-pyramid decoder",
-    "trained_on": "9 004 tiles \u2014 GAMUS + Dutch AHN LiDAR at 0.33 m and 1 m",
+    "trained_on": "7 804 tiles \u2014 GAMUS + Dutch AHN LiDAR at 0.33 m and 1 m",
     "val_rmse": 3.8503754247302635
   },
   "lidar_sites": [

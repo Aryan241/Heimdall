@@ -13,7 +13,7 @@ Heimdall converts a **single optical RGB remote-sensing image** into an elevatio
 * **Live demo**: <https://yann-n-heimdall.static.hf.space> — three scenes, each shipped beside its airborne-LiDAR twin, plus every measured accuracy figure in the Accuracy tab.
 * **Visualisation**: a web platform (Next.js + React Three Fiber) with upload, live progress, a UV-textured terrain mesh, orbit and first-person flight, true-metre height/slope readouts, distance and profile measurement, water-level simulation, and built-in **validation against reference DSM / LiDAR rasters**.
 
-The height model is a frozen **Depth Anything V2 Base** backbone plus a trained **multi-scale decoder** that consumes the DPT feature pyramid and predicts per-pixel scale and shift fields mapping backbone depth to metric height above ground. Trained on 9 004 tiles (GAMUS + Dutch AHN LiDAR at two ground resolutions); scored against airborne LiDAR at eight held-out Dutch sites at **5.68 m RMSE / r = 0.66**, versus 8.37 m for predicting zero and 7.44 m for the previous checkpoint (§4.4).
+The height model is a frozen **Depth Anything V2 Base** backbone plus a trained **multi-scale decoder** that consumes the DPT feature pyramid and predicts per-pixel scale and shift fields mapping backbone depth to metric height above ground. Trained on 7 804 tiles (GAMUS + Dutch AHN LiDAR at two ground resolutions); scored against airborne LiDAR at eight held-out Dutch sites at **5.68 m RMSE / r = 0.66**, versus 8.37 m for predicting zero and 7.44 m for the previous checkpoint (§4.4).
 
 ---
 
@@ -119,7 +119,7 @@ low-vegetation pixels, which dominate the imagery this will be evaluated on.
 
 | | |
 |---|---|
-| Data | **9 004 tiles** — GAMUS train + val (5 863), Dutch AHN at 0.33 m (2 200) and at 1 m (880) |
+| Data | **7 804 training tiles** — GAMUS train (5 004), AHN 0.33 m (2 000), AHN 1 m (800). A further **1 139** tiles (GAMUS val 859, AHN 200, AHN-1 m 80) are used only for validation, and GAMUS's 2 861-tile test split is untouched by training. Training and validation read separate directories (`images/train/` vs `images/val/`), so no tile is in both. |
 | Backbone | Depth Anything V2 Base, **frozen** (97.5 M parameters) |
 | Head | multi-scale DPT-pyramid decoder, **1.72 M** trainable parameters |
 | Crops | 256², batch 12 with 3-step gradient accumulation (effective batch 36) |

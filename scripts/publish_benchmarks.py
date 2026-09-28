@@ -73,7 +73,7 @@ def main() -> int:
     payload = {
         "generated": __import__("datetime").date.today().isoformat(),
         "model": {"backbone": "Depth Anything V2 Base (frozen)", "head": "multi-scale DPT-pyramid decoder",
-                  "trained_on": "9 004 tiles — GAMUS + Dutch AHN LiDAR at 0.33 m and 1 m",
+                  "trained_on": "7 804 tiles — GAMUS + Dutch AHN LiDAR at 0.33 m and 1 m",
                   "val_rmse": (gamus or {}).get("training", {}).get("val_rmse")},
         "lidar_sites": _sites(rows),
         "by_gsd": _by_gsd(rows),

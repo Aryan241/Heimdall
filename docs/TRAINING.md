@@ -133,7 +133,8 @@ Notes that matter on Kaggle specifically:
 
 ### What the reference run produced
 
-30 epochs over 9 004 tiles (GAMUS train + val, AHN 0.33 m, AHN 1 m), ~7 min/epoch:
+30 epochs over 7 804 training tiles (GAMUS train, AHN 0.33 m, AHN 1 m), validated on a separate
+1 139 tiles, ~7 min/epoch:
 
 | | val RMSE | MAE | r |
 |---|---|---|---|
