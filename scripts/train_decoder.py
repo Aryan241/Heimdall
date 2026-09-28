@@ -206,17 +206,23 @@ def main() -> int:
         state = {"epoch": epoch, "head_state_dict": model.head.state_dict(), "loss": train_loss,
                  "val": val, "model_key": args.model, "head": args.head}
         if thawed:
-            # Fine-tuned backbone weights must travel with the head, or the checkpoint silently
-            # reverts to the pretrained backbone and the experiment's result cannot be shipped.
-            state["backbone_state_dict"] = {k: v.cpu() for k, v in model.backbone.state_dict().items()}
             state["unfreeze_blocks"] = args.unfreeze_blocks
+        # Per-epoch checkpoints deliberately omit the backbone. With blocks unfrozen it is about
+        # 390 MB, and thirty of those would be 12 GB - enough to fill a Kaggle working directory
+        # part-way through a run. Only the best checkpoint carries it, which is the one that ships.
         torch.save({**state, "optimizer_state_dict": optimizer.state_dict()},
                    args.output_dir / f"decoder_ep{epoch:02d}_{tag}.pth")
         score = val.get("rmse", train_loss)
         if score < best_rmse:
             best_rmse = score
-            torch.save(state, args.output_dir / f"decoder_best_{tag}.pth")
-            log.info("New best checkpoint (val RMSE %.3f m)", best_rmse)
+            best = dict(state)
+            if thawed:
+                # Fine-tuned backbone weights must travel with the head, or loading the checkpoint
+                # silently reverts to the pretrained backbone and the result cannot be reproduced.
+                best["backbone_state_dict"] = {k: v.cpu() for k, v in model.backbone.state_dict().items()}
+            torch.save(best, args.output_dir / f"decoder_best_{tag}.pth")
+            log.info("New best checkpoint (val RMSE %.3f m)%s", best_rmse,
+                     " with fine-tuned backbone" if thawed else "")
 
     log.info("Done. Best val RMSE: %.3f m → %s", best_rmse, args.output_dir / f"decoder_best_{tag}.pth")
     return 0
