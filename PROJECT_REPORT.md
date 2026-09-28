@@ -10,6 +10,7 @@ Heimdall converts a **single optical RGB remote-sensing image** into an elevatio
 
 * **Georeferenced input (GeoTIFF)** → **absolute DSM** in metres, in the image's own CRS. It combines a terrain datum from a coarse DEM (Copernicus GLO-30 fetched automatically, or a user-supplied SRTM / CartoDEM) with a learned **height-above-ground (nDSM)** map, and can optionally be corrected with ground control points.
 * **Non-georeferenced input (PNG / JPG)** → **relative DSM (rDSM)**: height above local ground, in metres when the ground sample distance is known or can be estimated.
+* **Live demo**: <https://yann-n-heimdall.static.hf.space> — three scenes, each shipped beside its airborne-LiDAR twin, plus every measured accuracy figure in the Accuracy tab.
 * **Visualisation**: a web platform (Next.js + React Three Fiber) with upload, live progress, a UV-textured terrain mesh, orbit and first-person flight, true-metre height/slope readouts, distance and profile measurement, water-level simulation, and built-in **validation against reference DSM / LiDAR rasters**.
 
 The height model is a frozen **Depth Anything V2 Base** backbone plus a trained **multi-scale decoder** that consumes the DPT feature pyramid and predicts per-pixel scale and shift fields mapping backbone depth to metric height above ground. Trained on 9 004 tiles (GAMUS + Dutch AHN LiDAR at two ground resolutions); scored against airborne LiDAR at eight held-out Dutch sites at **5.68 m RMSE / r = 0.66**, versus 8.37 m for predicting zero and 7.44 m for the previous checkpoint (§4.4).
@@ -18,17 +19,17 @@ The height model is a frozen **Depth Anything V2 Base** backbone plus a trained 
 
 ## 1. Problem-statement mapping
 
-| Requirement (PS 26175) | Implementation |
-|---|---|
-| Pre-trained monocular backbone for relative depth | Depth Anything V2 (frozen); V3 bundled and selectable (`heimdall/depth`, `depth_anything_3/`) |
-| rDSM for non-georeferenced imagery | `infer.py` on PNG/JPG → `*_rdsm.tif` (+ PNG, mesh) |
-| Absolute DSM for georeferenced imagery using SRTM-class DEM or GCPs | DTM from reprojected coarse DEM (auto Copernicus GLO-30 / user DEM) + nDSM; GCP offset/plane correction (`heimdall/calibration/dem.py`) |
-| Output DSM in a standard geospatial format | Float32 GeoTIFF with source CRS and geotransform, nodata, units and product tags |
-| Project the optical image onto a terrain mesh | Grid mesh with UVs onto the full-resolution image, exported as glTF binary (`heimdall/mesh`) |
-| Rendering engine, first-person navigation, heights/slopes from any viewpoint | Three.js / R3F viewer: orbit, fly (terrain collision), hover readouts, slope layer, measure/profile, flood level |
-| Upload imagery, visualise, validate against references | Web app job API + validation panel (`POST /api/jobs/:id/validate`) |
-| RMSE / MAE / correlation, stability across landscapes | `validate.py`, `eval.py`: RMSE, MAE, bias, NMAD, LE90, Pearson r, R², per landscape / class / city |
-| Standalone deployment | `run.sh`, Next.js standalone build, Dockerfile with baked model weights (offline) |
+| Requirement (PS 26175) | Implementation | Verified |
+|---|---|---|
+| Pre-trained monocular backbone for relative depth | Depth Anything V2 Base, frozen (`heimdall/depth`); V3 bundled and selectable (`depth_anything_3/`) | backbone comparison, §4.4 |
+| rDSM for non-georeferenced imagery (PNG/JPG) | `infer.py` on a plain image → `*_rdsm.tif` + PNG, mesh, metadata | end-to-end run on a JPG |
+| Absolute DSM for georeferenced imagery using SRTM-class DEM or GCPs | DTM from a reprojected coarse DEM (auto Copernicus GLO-30, or a user file — SRTM and ISRO CartoDEM both tested) + nDSM; GCP offset/plane correction (`heimdall/calibration/dem.py`) | CartoDEM run over Hyderabad; GCP fit against AHN LiDAR control points |
+| Output DSM in a standard geospatial format | Float32 GeoTIFF carrying the source CRS, geotransform, nodata, units and product tags | every pipeline run |
+| Project the optical image onto a 3D terrain mesh | Grid mesh with UVs onto the full-resolution image, exported as glTF binary (`heimdall/mesh`) | bundled scenes |
+| Rendering engine (Three.js), first-person navigation, heights and slopes from arbitrary viewpoints | React Three Fiber viewer: orbit and first-person flight with terrain collision, hover readouts of elevation / above-ground height / slope / coordinates, slope layer, measurement with elevation profile, flood level | live in the app |
+| Upload imagery, visualise, validate height values against reference datasets | Job API with streamed progress + validation panel (`POST /api/jobs/:id/validate`) | upload → DSM → validated against AHN LiDAR at 3.05 m above-ground RMSE |
+| RMSE / MAE / correlation, stability across urban, sparse, hilly and forested landscapes | `validate.py`, `eval.py`, `scripts/benchmark_ahn.py`: RMSE, MAE, bias, NMAD, LE90, Pearson r, R², δ-thresholds, per landscape / surface class / city, against a predict-zero baseline | §4.4, and the Accuracy tab in the app |
+| Standalone deployment | `run.sh` (standalone Next bundle + Python), Dockerfile with model weights baked in for offline use, and a public static demo | standalone server tested end to end; demo live |
 
 ---
 
@@ -108,14 +109,37 @@ Total = 1.0 · SILog + 0.5 · GradientMatching(4 scales) + 0.1 · L1
 * **Multi-scale gradient matching** (steps 1, 2, 4, 8 px) keeps roof edges and terrain breaks sharp.
 * **L1 anchor** keeps the absolute scale from drifting.
 
-**Training run used for the shipped checkpoint** (Kaggle, 2× Tesla T4): 524 GAMUS tiles, 512² random crops, batch 2 with 4-step gradient accumulation, AdamW (lr 1e-4, wd 1e-4), cosine schedule, AMP, 78 completed epochs in a 12-hour session. `decoder_best_all.pth` is the epoch-77 checkpoint (lowest training loss, 12.80).
+A known consequence of the log domain: a 60 m error on a 100 m tower registers as only ~3×
+the penalty of a 0.5 m error on a 1 m kerb, although it is 120× larger in metres. This is part
+of why tall structures are under-predicted (§4.4), and a height-weighted term is the obvious
+lever — deliberately not pulled, because it trades away sub-metre accuracy on ground, road and
+low-vegetation pixels, which dominate the imagery this will be evaluated on.
 
-**Training script improvements** (`scripts/train_decoder.py`) for further runs:
-* flip / 90° rotation / photometric augmentation;
-* a validation split evaluated at native GSD (centre crops, not resizing);
-* best checkpoint selected by **validation RMSE**;
-* `--resume` for fine-tuning;
-* DA3 run one image at a time (batched calls make DA3 treat unrelated tiles as views of one scene; measured 2.3 % change in depth).
+**Training run used for the shipped checkpoint** (Kaggle, Tesla T4):
+
+| | |
+|---|---|
+| Data | **9 004 tiles** — GAMUS train + val (5 863), Dutch AHN at 0.33 m (2 200) and at 1 m (880) |
+| Backbone | Depth Anything V2 Base, **frozen** (97.5 M parameters) |
+| Head | multi-scale DPT-pyramid decoder, **1.72 M** trainable parameters |
+| Crops | 256², batch 12 with 3-step gradient accumulation (effective batch 36) |
+| Optimiser | AdamW, lr 3e-4, cosine schedule |
+| Length | 30 epochs, ~7 min/epoch, ~4.7 h total |
+| Selection | **validation RMSE**, not training loss |
+| Result | best epoch 25 — val RMSE **3.850 m**, MAE 1.934 m, r 0.792 |
+
+Validation moved by 0.01 m across the last two epochs, so the schedule had converged; the
+remaining error is not a matter of training longer. The full recipe, as a single cell that can
+be pasted into a Kaggle notebook, is in `docs/TRAINING.md`.
+
+The AHN tiles were rebuilt at 1 m on purpose: GAMUS is entirely 0.33 m US aerial imagery, and
+the model had to see satellite-like coarseness during training rather than meeting it for the
+first time at evaluation. §4.4 shows that this worked.
+
+**Training script** (`scripts/train_decoder.py`): flip / 90° rotation / photometric
+augmentation; a validation split evaluated at native GSD (centre crops, not resized);
+`--resume` for fine-tuning; `--head {affine,multiscale}` to select the decoder; OOM resilience
+(drops the batch, waits, continues) for shared GPUs; and optional backbone-feature caching.
 
 ---
 
@@ -253,7 +277,41 @@ it from scratch (`docs/TRAINING.md`) — a head is fitted to one backbone's outp
 distribution, so the old weights could not be fine-tuned. The table at the top of this
 section is that retrained model, measured by re-running the same benchmark.
 
-### 4.5 Ground-truth comparison in the viewer
+### 4.5 Results — held-out GAMUS test split
+
+GAMUS is the dataset the problem statement recommends, so its own test split is the most
+directly comparable number. 500 tiles drawn at random from the 2 861-tile test split, never
+trained on, no test-time augmentation and no object-based regularisation
+(`outputs/gamus_test.json`):
+
+| | RMSE | MAE | Bias | NMAD | Median error | r |
+|---|---|---|---|---|---|---|
+| **Heimdall** | **5.42 m** | **2.46 m** | −1.48 m | 0.94 m | **0.64 m** | **0.751** |
+| Predict 0 m everywhere | 8.67 m | 4.39 m | −4.33 m | 0.50 m | 0.47 m | — |
+
+37 % lower RMSE and 44 % lower MAE than the trivial baseline. The gap between the median error
+(0.64 m) and the RMSE (5.42 m) is the important detail: **half of all pixels are within 0.64 m**,
+and the RMSE is carried by a minority of tall objects.
+
+By surface class, using GAMUS's own semantic labels:
+
+| Surface | RMSE | MAE | Bias |
+|---|---|---|---|
+| Low vegetation | 1.71 m | 0.75 m | +0.36 m |
+| Ground | 2.24 m | 0.80 m | −0.06 m |
+| Road | 2.34 m | 0.86 m | −0.23 m |
+| Water | 2.31 m | 1.12 m | +0.91 m |
+| Building | 7.27 m | 3.54 m | −2.47 m |
+| Tree | 6.85 m | 5.01 m | −3.98 m |
+
+Ground, roads and low vegetation are sub-metre. Buildings and trees carry essentially all of
+the error, and both are under-predicted.
+
+By landscape: sparse 1.13 m, mixed 2.17 m, forested 4.55 m, urban 5.72 m. The forested figure
+rests on a single tile in this split and should not be relied on — §4.4's Veluwe site (2.26 m,
+r 0.79) is the meaningful forest measurement.
+
+### 4.6 Ground-truth comparison in the viewer
 
 `scripts/build_demo_site.py` builds two scenes for the same place: Heimdall's reconstruction
 from the orthophoto, and a second scene whose heights come from the AHN LiDAR instead of the
@@ -281,7 +339,7 @@ Any of the eight benchmark sites can be built the same way:
 python scripts/build_demo_site.py --site amsterdam_centre --size 600
 ```
 
-### 4.6 Qualitative end-to-end run (arbitrary user upload)
+### 4.7 Qualitative end-to-end run (arbitrary user upload)
 A user-supplied georeferenced drone orthomosaic, Kathmandu (EPSG:32645, 1.25 cm GSD,
 7649 × 8154 px) — not bundled with the app, but run through the same pipeline to check it
 handles imagery far outside the training distribution:
@@ -294,7 +352,7 @@ Structure is correct (roads and courtyards low, roofs and tree crowns high). No 
 exists for this scene, so it is a qualitative check only — the retrained model produces a
 flatter surface here than the previous checkpoint did (4.3 m against 9.4 m peak height), and
 without ground truth neither can be called correct. The quantitative claims in this report all
-come from §4.4 and §4.5, where LiDAR truth exists.
+come from §4.4, §4.5 and §4.6, where ground truth exists.
 
 ---
 
@@ -313,51 +371,104 @@ come from §4.4 and §4.5, where LiDAR truth exists.
   * two-point measurement with an elevation profile;
   * flood water level with inundated fraction and area;
   * screenshots.
+* **Example scenes with ground truth**: three held-out benchmark sites, each shipped beside a
+  twin built from airborne LiDAR on the same grid, same texture and same vertical origin. A
+  toggle switches between the reconstruction and the measurement, so the error can be flown
+  through rather than read off a table, with the site's metrics beside it.
+* **Accuracy tab**: every measured figure inside the product — the eight-site LiDAR benchmark
+  with per-site error maps, accuracy across simulated satellite resolutions, and the GAMUS test
+  breakdown by surface type, each against the predict-zero baseline.
 * **Validation panel**: upload a reference raster to get metric tables, per-class errors, a scatter plot, a histogram and an error map.
 * **2D maps** and **metadata** tabs, and a recent-jobs list.
 
 ## 6. Deployment
 
-* `./run.sh`: first run creates the virtualenv, installs dependencies, downloads models and builds the web app; it then serves on port 3000.
-* **Docker**: the multi-stage image bakes the DA3 weights, YOLO and the decoder head into the image, so it runs offline (`--build-arg TORCH_INDEX=…cu121` for CUDA).
-* **Offline operation**: `scripts/prefetch_models.py` then `HF_HUB_OFFLINE=1`. Without internet, supply `--reference-dem` or GCPs for absolute heights.
-* **Tests**: `pytest -q tests` covers tiling, polarity, band order / 16-bit stretch, GSD, DEM reprojection (metric values preserved), GCP plane fit, RANSAC, metrics, datum-offset validation and mesh export.
+* **Public demo**: <https://yann-n-heimdall.static.hf.space> — a static export of the viewer
+  carrying the three LiDAR-comparison scenes and the measured results. The 3D flythrough,
+  layers, measurement tools, ground-truth comparison and the Accuracy tab all run client-side.
+  Processing an upload needs the PyTorch pipeline server-side, so that panel is replaced with a
+  note; `scripts/build_static_demo.sh` builds and deploys it.
+* **`./run.sh`**: first run creates the virtualenv, installs dependencies, downloads models and
+  builds the web app; it then serves the standalone bundle on port 3000. This is the full
+  application, uploads included.
+* **Docker**: the multi-stage image bakes Depth Anything V2, YOLO and the trained decoder head
+  into the image, so it runs offline (`--build-arg TORCH_INDEX=…cu121` for CUDA).
+* **Offline operation**: `scripts/prefetch_models.py`, then `HF_HUB_OFFLINE=1`. Without
+  internet, supply `--reference-dem` or GCPs for absolute heights.
+* **Tests**: `pytest -q tests` — 30 tests covering tiling, depth polarity, band order and
+  16-bit stretch, GSD inference, DEM reprojection (metric values preserved), GCP plane fitting,
+  RANSAC, the metrics, datum-offset validation, mesh export and edge cases.
 
 ---
 
 ## 7. Anticipated reviewer questions
 
 **Q1. Why freeze the Depth Anything backbone?**
-The labelled set is small relative to the 334 M-parameter backbone; full fine-tuning risks catastrophic forgetting of the general depth priors. A light head (1.4 M parameters) learns the domain mapping from backbone depth to metric above-ground height.
+The labelled set is small relative to a 97.5 M-parameter backbone; full fine-tuning risks
+catastrophic forgetting of the general depth priors that make single-view geometry work at all.
+A 1.72 M-parameter head learns the domain mapping from backbone features to metric
+above-ground height, and trains in under five hours on one T4.
 
 **Q2. Why predict scale and shift fields instead of height directly?**
-The backbone already encodes relative geometry. A spatially varying affine map is a strong, well-conditioned prior, and it is initialised to the identity so training starts from the backbone's structure.
+The backbone already encodes relative geometry. A spatially varying affine map is a strong,
+well-conditioned prior, and it is initialised to the identity so training starts from "height =
+backbone depth" and learns the correction rather than the whole function.
 
 **Q3. How do you get absolute elevation from one image?**
-You can't from pixels alone. The model recovers height above ground, and absolute elevation comes from a datum: a 30 m DEM (reprojected and bare-earth filtered) or GCPs. The DSM is their sum, and the metadata records which datum was used.
+You can't from pixels alone. The model recovers height above ground; absolute elevation comes
+from a datum — a 30 m DEM (reprojected and bare-earth filtered) or GCPs. The DSM is their sum,
+and the metadata records which datum was used. ISRO's own CartoDEM works here and has been
+tested (`--reference-dem`), as does SRTM and the auto-fetched Copernicus GLO-30.
 
 **Q4. Why resample to 0.33 m?**
-That is the GSD the head was trained at. Monocular height cues are scale-dependent, so matching the training GSD is the single most important factor for metric accuracy across sensors.
+That is the GSD the head was trained at. Monocular height cues are scale-dependent, so matching
+the training GSD is the single most important factor for metric accuracy across sensors. §4.4
+quantifies what it buys: accuracy is flat from 0.25 m to 1 m imagery.
 
 **Q5. How do you validate against LiDAR with a different datum?**
-The validator reports raw metrics, offset-removed metrics (a constant datum shift is not a model error) and above-ground metrics, all on the reprojected reference grid, and it writes an error map.
+The validator reports raw metrics, offset-removed metrics (a constant datum shift is not a
+model error) and above-ground metrics, all on the reprojected reference grid, and it writes an
+error map. The bundled comparison scenes go further: the reference twin reuses the pipeline's
+own terrain datum and replaces only the above-ground layer, so the datum cancels entirely.
 
 **Q6. Why SILog with `log1p`?**
-Ground pixels in an nDSM are exactly 0 m; `log1p` stays finite there. The variance clamp prevents infinite gradients near zero error. Gradient matching sharpens edges, and L1 anchors the absolute scale.
+Ground pixels in an nDSM are exactly 0 m; `log1p` stays finite there. The variance clamp
+prevents infinite gradients near zero error. Gradient matching sharpens edges, and L1 anchors
+the absolute scale. The cost of the log domain is discussed in §3.
 
 **Q7. Latency?**
-Measured on an Apple-silicon laptop (MPS): about 1.3 s per 512² tile. The 7649 × 8154 demo GeoTIFF takes about 13 s end to end, including the DEM download. CUDA GPUs are faster.
+Measured on an Apple-silicon laptop (MPS): about 1.3 s per 512² tile. A 600 m site at 0.25 m
+(1800² working grid) takes about 58 s end to end with test-time augmentation, including the DEM
+download; a smaller scene takes 11–26 s. CUDA GPUs are faster.
 
 **Q8. Known weaknesses?**
-* Trained on 524 GAMUS tiles (urban US/EU, 0.33 m): coverage of Indian urban morphology, forests and hilly terrain is limited.
-* Absolute accuracy is bounded by the 30 m datum.
-* Heights of tall buildings tend to be under-estimated.
+* **Tall buildings are under-predicted** — Rotterdam's high-rise core scores 16.94 m RMSE with
+  a −6.55 m bias, against 5.68 m across the benchmark as a whole. A single nadir view carries no
+  parallax, so the height of a tower is inferred from shadow and faint perspective cues that
+  orthorectification has deliberately removed. This is close to a limit of the input, not a bug.
+* **Tree canopy** is the worst surface class (6.85 m RMSE, −3.98 m bias): canopy height varies
+  by metres within one crown, and the backbone sees texture rather than structure.
+* **Systematic under-prediction** of −1.48 m overall, in the conservative direction.
+* **Absolute accuracy is bounded by the 30 m datum** where no GCPs are supplied.
+* **Training geography**: GAMUS is three US cities and AHN is the Netherlands. No Indian imagery
+  was available with height ground truth, so transfer to Indian urban morphology is argued from
+  the resolution study (§4.4) rather than measured directly.
+* **Flat terrain with no structure** — the model is marginally worse than predicting zero on
+  reclaimed polder farmland (1.53 m vs 1.43 m), where zero is very nearly the right answer.
 
 ---
 
 ## 8. Roadmap
 
-1. **Train on the full GAMUS training split** (6,304 tiles vs the 524 used), with augmentation and validation-based model selection.
-2. Fine-tune on Indian imagery (e.g. Cartosat with CartoDEM / LiDAR where available) at the evaluation GSD.
-3. Use DA3's `depth_conf` to down-weight unreliable pixels in the loss and export a confidence layer.
-4. ONNX / TensorRT export for edge deployment.
+1. **Height-weighted loss** to attack the tall-building bias (§3), measured against the current
+   checkpoint on all eight benchmark sites before being adopted — the trade against sub-metre
+   ground accuracy has to be paid for in evidence, not assumed.
+2. **Indian validation**: no open LiDAR nDSM exists for Indian cities, so the nearest available
+   independent check is OpenStreetMap storey counts (`building:levels` × ~3 m) over a Cartosat
+   or high-resolution scene. A plausibility check, not a benchmark, and it should be labelled
+   as such.
+3. **Shadow-length features** as an explicit input: the one geometric cue for absolute height
+   that survives orthorectification, and the most principled route to fixing tall structures.
+4. **Confidence layer** — export per-pixel uncertainty so downstream users can mask the pixels
+   the model is guessing at, rather than trusting a flat surface everywhere.
+5. **ONNX / TensorRT export** for edge deployment.

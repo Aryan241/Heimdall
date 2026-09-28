@@ -217,8 +217,8 @@ python scripts/publish_benchmarks.py                                 # refresh t
 
 * To weight a dataset more heavily, pass its directory twice.
 * `--no-augment` disables flips/rotations/jitter — debugging only.
-* The head is small (1.4 M parameters). If it underfits badly, widen `hidden_dim` in
-  `heimdall/decoder/head.py` and retrain from scratch.
+* The head is small (1.72 M parameters for the multiscale decoder). If it underfits badly,
+  widen `hidden_dim` in `heimdall/decoder/multiscale_head.py` and retrain from scratch.
 * Caching stores a **satellite-degraded** copy of every tile (down-sampled to ~0.5–1 m and
   back), and training samples it half the time, so the head also learns coarser sensors —
   closer to the imagery ISRO will supply at evaluation.

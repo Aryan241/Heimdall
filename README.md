@@ -30,7 +30,7 @@ image ─► ingest (bands, 16-bit stretch, nodata, CRS)
 ```
 
 * **Backbone**: Depth Anything V2 Base, frozen (Hugging Face), chosen by measured correlation with LiDAR height (median r 0.56 at 1.6 s/tile). Depth Anything V3's *monocular* model matches it (0.58) but is ~3× slower; V3's *metric* model scores 0.06 because metric depth assumes a perspective camera that an orthomosaic doesn't have. Selectable: `--model vit-s|vit-b|vit-l|da3-mono-l|da3-l|da3-metric-l` (a head is fitted to one backbone, so switching needs retraining).
-* **Head**: ASPP regression head (dilations 1/6/12/18) predicting per-pixel scale and shift of the backbone depth → metric height above ground. Trained on **GAMUS** (0.33 m RGB + nDSM) with SILog + multi-scale gradient-matching + L1 loss (`scripts/train_decoder.py`). Checkpoint: `checkpoints/decoder/decoder_best_all.pth`.
+* **Head**: a multi-scale decoder (`heimdall/decoder/multiscale_head.py`, 1.72 M parameters) that consumes the backbone's DPT feature pyramid and predicts per-pixel scale and shift of the backbone depth → metric height above ground. Trained on 9 004 tiles — **GAMUS** (0.33 m RGB + nDSM) plus Dutch AHN LiDAR at 0.33 m and 1 m — with SILog + multi-scale gradient-matching + L1 loss (`scripts/train_decoder.py`). Checkpoint: `checkpoints/decoder/decoder_best.pth`.
 * **Why resample to 0.33 m**: the head learned heights at the GAMUS ground sample distance; running it at another GSD changes the apparent size of every object. Up-sampling is capped at 3× for coarse imagery.
 * **Absolute scale**: the coarse DEM is reprojected onto the image grid (any CRS), filtered with a morphological opening to suppress buildings/canopy that leak into 30 m radar DEMs, and smoothly up-sampled. GCPs (CSV) remove the residual offset or tilt.
 * **Backbone-only mode** (`--weights none`): relative height from DA3 (depth sign-corrected), RANSAC-calibrated to a DEM when the DEM can actually constrain it (enough cells and relief), otherwise output as a unitless rDSM.
@@ -107,7 +107,7 @@ python scripts/benchmark_ahn.py --out outputs/benchmark_ahn        # --gsd 0.5 1
 python validate.py --meta outputs/scene_meta.json --reference lidar_dsm.tif
 
 # The decoder head on the GAMUS test split, at native resolution with production tiling
-python eval.py --weights checkpoints/decoder/decoder_best_all.pth --data-dir /path/to/GAMUS --split test \
+python eval.py --weights checkpoints/decoder/decoder_best.pth --data-dir /path/to/GAMUS --split test \
                --output results/gamus_test.json            # add --every 4 for a quick run
 ```
 
@@ -118,7 +118,7 @@ Reported metrics: RMSE, MAE, bias, NMAD, LE90, Pearson r, R², δ-accuracy. They
 ```bash
 python scripts/train_decoder.py --dataset-dir /path/to/GAMUS --epochs 40 --batch-size 4
 # fine-tune the shipped head
-python scripts/train_decoder.py --dataset-dir /path/to/GAMUS --resume checkpoints/decoder/decoder_best_all.pth --epochs 10 --lr 2e-5
+python scripts/train_decoder.py --dataset-dir /path/to/GAMUS --resume checkpoints/decoder/decoder_best.pth --epochs 10 --lr 2e-5
 ```
 
 Flip / 90° rotation / photometric augmentation, a validation split at native GSD, and best-checkpoint selection by validation RMSE are built in.
