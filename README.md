@@ -178,6 +178,16 @@ heimdall-web/           Next.js + React Three Fiber web app (see heimdall-web/RE
 tests/                  unit tests
 ```
 
+## Licensing
+
+Heimdall uses third-party models and data, two of which carry obligations worth knowing before
+deployment: the default backbone (Depth Anything V2 Base) is **CC-BY-NC-4.0**, so
+non-commercial use only, and the optional vehicle detector (Ultralytics YOLO) is **AGPL-3.0**.
+A permissively licensed build is available — DA3 Mono Large is Apache-2.0 and measured
+statistically indistinguishable from the default backbone — at roughly 3× the inference cost
+and a retrain of the head. Full breakdown, including the attribution required for GAMUS, AHN
+and Copernicus: [docs/LICENSING.md](docs/LICENSING.md).
+
 ## Known limitations
 
 * Tall buildings and tree canopy are **under-predicted** (Rotterdam high-rise: 16.9 m RMSE, −6.6 m bias; GAMUS tree pixels: 6.9 m RMSE, −4.0 m bias). A single nadir view carries no parallax, so absolute height for tall structures is inferred rather than measured. Always re-measure with `scripts/benchmark_ahn.py` / `eval.py` / `validate.py` before quoting numbers.
