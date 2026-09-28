@@ -325,8 +325,13 @@ road pixels into the ground stratum because both sit at bare-earth level, and al
 separately, so the class rows are not disjoint and do not sum to the total.
 
 By landscape: sparse 1.13 m, mixed 2.17 m, forested 4.55 m, urban 5.72 m. The forested figure
-rests on a single tile in this split and should not be relied on — §4.4's Veluwe site (2.26 m,
-r 0.79) is the meaningful forest measurement.
+rests on a single tile and should not be relied on. That is not a sampling accident: measured
+over every GAMUS tile we hold, 87% of train, 87% of val and 89% of test classify as urban,
+while forest-dominated tiles are 19 of 5 004 in train, none in val and one in test. GAMUS is
+three American cities and contains essentially no forest, hills or open farmland — though tree
+*pixels* are plentiful at 25% of training pixels, so the model does see trees, just never a
+forest. §4.4's Veluwe site (2.26 m, r 0.79) is the meaningful forest measurement, and the
+competence behind it comes from the AHN training tiles rather than from GAMUS.
 
 ### 4.6 Ground-truth comparison in the viewer
 

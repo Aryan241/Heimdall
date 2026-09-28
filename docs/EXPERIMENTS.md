@@ -126,8 +126,16 @@ cheapest available lever is simply more of the data that already worked, sampled
 landscape types the PS grades.
 
 **Why it is relevant.** "Stability across urban, sparse, hilly and forested landscapes" is
-graded explicitly, and GAMUS is three US cities with exactly one forested tile in its test
-split. Broader sampling is the honest way to support a stability claim.
+graded explicitly, and GAMUS cannot support it. Measured across every tile we hold, our own
+scene classifier labels **87% of GAMUS train, 87% of val and 89% of test as urban**, with
+forest-dominated tiles at 19 of 5 004 training tiles (0.4%), none in val and one in test.
+Three American cities do not contain forest, hills or open farmland.
+
+Tree *pixels* are abundant — 25% of training pixels — so the model sees plenty of trees; what
+it never sees is a forest. Our Veluwe result (2.26 m, r 0.79) is therefore earned almost
+entirely by the AHN tiles, not by GAMUS. AHN is the only source we have for three of the four
+landscapes the evaluation grades, which makes quadrupling it the most direct way to support a
+stability claim.
 
 **Expected gain.** Modest but reliable; most likely to show up as landscape consistency rather
 than headline RMSE.
