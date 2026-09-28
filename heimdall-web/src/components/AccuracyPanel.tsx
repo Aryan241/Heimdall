@@ -24,6 +24,9 @@ interface Benchmarks {
 }
 
 const pretty = (s: string) => s.replace(/_/g, ' ');
+// eval.py folds road pixels into `ground` (both are bare-earth level) and also reports road on
+// its own, so the two rows overlap. Say so rather than letting the table imply they are disjoint.
+const CLASS_LABEL: Record<string, string> = { ground: 'ground (incl. road)' };
 
 export default function AccuracyPanel() {
   const [data, setData] = useState<Benchmarks | null>(null);
@@ -90,6 +93,9 @@ export default function AccuracyPanel() {
         </table>
         {site && data.site_maps[site] && (
           <figure style={{ marginTop: 12 }}>
+            {/* Plain <img>: the static export runs with images.unoptimized, so next/image
+                would add machinery without optimising anything. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={data.site_maps[site]} alt={`Error maps for ${pretty(site)}`} style={{ width: '100%' }} />
             <figcaption className="muted small">{pretty(site)} — prediction, reference and error</figcaption>
           </figure>
@@ -134,7 +140,7 @@ export default function AccuracyPanel() {
                 .sort((a, b) => a[1].mae - b[1].mae)
                 .map(([k, v]) => (
                   <tr key={k}>
-                    <td>{pretty(k)}</td><td>{fmt(v.rmse)} m</td><td>{fmt(v.mae)} m</td><td>{fmt(v.bias)} m</td>
+                    <td>{CLASS_LABEL[k] ?? pretty(k)}</td><td>{fmt(v.rmse)} m</td><td>{fmt(v.mae)} m</td><td>{fmt(v.bias)} m</td>
                   </tr>
                 ))}
             </tbody>

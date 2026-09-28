@@ -56,33 +56,42 @@ export async function POST(req: NextRequest) {
   } catch {}
 
   const id = newJobId();
-  // From here on the slot is released by the stream's completion handler.
   const dir = jobPath(id);
-  await ensureDir(dir);
-
   const imgName = `input${safeExt(image.name, ['.tif', '.tiff', '.png', '.jpg', '.jpeg', '.bmp'], '.png')}`;
-  await writeFile(jobPath(id, imgName), Buffer.from(await image.arrayBuffer()));
   const args = ['--input', jobPath(id, imgName), '--output-dir', dir, '--name', JOB_NAME];
 
-  if (dem instanceof File && dem.size > 0) {
-    const demName = `reference_dem${safeExt(dem.name, ['.tif', '.tiff'], '.tif')}`;
-    await writeFile(jobPath(id, demName), Buffer.from(await dem.arrayBuffer()));
-    args.push('--reference-dem', jobPath(id, demName));
-  }
-  if (gcps instanceof File && gcps.size > 0) {
-    await writeFile(jobPath(id, 'gcps.csv'), Buffer.from(await gcps.arrayBuffer()));
-    args.push('--gcps', jobPath(id, 'gcps.csv'));
-  }
-  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
-  if (num(options.gsd)) args.push('--gsd', String(options.gsd));
-  if (num(options.maxSide)) args.push('--max-side', String(Math.round(options.maxSide as number)));
-  if (typeof options.bands === 'string' && /^\d(,\d){2}$/.test(options.bands)) args.push('--bands', options.bands);
-  if (options.tta === true) args.push('--tta');
-  if (options.refine === false) args.push('--no-refine');
-  if (options.autoDem === false) args.push('--no-auto-dem');
-  if (options.mode === 'relative') args.push('--weights', 'none');
+  // Everything that touches the disk runs inside this guard. The concurrency slot is released
+  // by the stream's completion handler, which only exists once the stream starts — so a failure
+  // here (full disk, bad permissions, truncated upload) would otherwise leak the slot forever
+  // and the server would answer 429 to every later job until it was restarted.
+  try {
+    await ensureDir(dir);
+    await writeFile(jobPath(id, imgName), Buffer.from(await image.arrayBuffer()));
 
-  await writeJobInfo(id, { input: image.name, created: new Date().toISOString(), status: 'running', options });
+    if (dem instanceof File && dem.size > 0) {
+      const demName = `reference_dem${safeExt(dem.name, ['.tif', '.tiff'], '.tif')}`;
+      await writeFile(jobPath(id, demName), Buffer.from(await dem.arrayBuffer()));
+      args.push('--reference-dem', jobPath(id, demName));
+    }
+    if (gcps instanceof File && gcps.size > 0) {
+      await writeFile(jobPath(id, 'gcps.csv'), Buffer.from(await gcps.arrayBuffer()));
+      args.push('--gcps', jobPath(id, 'gcps.csv'));
+    }
+    const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
+    if (num(options.gsd)) args.push('--gsd', String(options.gsd));
+    if (num(options.maxSide)) args.push('--max-side', String(Math.round(options.maxSide as number)));
+    if (typeof options.bands === 'string' && /^\d(,\d){2}$/.test(options.bands)) args.push('--bands', options.bands);
+    if (options.tta === true) args.push('--tta');
+    if (options.refine === false) args.push('--no-refine');
+    if (options.autoDem === false) args.push('--no-auto-dem');
+    if (options.mode === 'relative') args.push('--weights', 'none');
+
+    await writeJobInfo(id, { input: image.name, created: new Date().toISOString(), status: 'running', options });
+  } catch (err) {
+    releaseSlot();
+    const message = err instanceof Error ? err.message : String(err);
+    return Response.json({ error: `Could not stage the job: ${message}` }, { status: 500 });
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -120,7 +129,7 @@ export async function POST(req: NextRequest) {
         child.kill('SIGKILL');
       }, JOB_TIMEOUT_MS);
 
-      done.then(async (code) => {
+      done.catch(() => -1).then(async (code) => {
         clearTimeout(timer);
         releaseSlot();
         req.signal.removeEventListener('abort', abort);

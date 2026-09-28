@@ -298,14 +298,16 @@ By surface class, using GAMUS's own semantic labels:
 | Surface | RMSE | MAE | Bias |
 |---|---|---|---|
 | Low vegetation | 1.71 m | 0.75 m | +0.36 m |
-| Ground | 2.24 m | 0.80 m | −0.06 m |
+| Ground (incl. road) | 2.24 m | 0.80 m | −0.06 m |
 | Road | 2.34 m | 0.86 m | −0.23 m |
 | Water | 2.31 m | 1.12 m | +0.91 m |
 | Building | 7.27 m | 3.54 m | −2.47 m |
 | Tree | 6.85 m | 5.01 m | −3.98 m |
 
 Ground, roads and low vegetation are sub-metre. Buildings and trees carry essentially all of
-the error, and both are under-predicted.
+the error, and both are under-predicted. Note that `ground` and `road` overlap: `eval.py` folds
+road pixels into the ground stratum because both sit at bare-earth level, and also reports road
+separately, so the class rows are not disjoint and do not sum to the total.
 
 By landscape: sparse 1.13 m, mixed 2.17 m, forested 4.55 m, urban 5.72 m. The forested figure
 rests on a single tile in this split and should not be relied on — §4.4's Veluwe site (2.26 m,

@@ -35,9 +35,11 @@ def gsd_from_geo(geo: GeoInfo, shape: tuple[int, int]) -> float:
     """Return mean ground sample distance in metres per pixel for a georeferenced raster."""
     res_x, res_y = pixel_size(geo.transform)
     if not geo.is_geographic:
-        # Projected CRS. Assume metre units (true for UTM and virtually all EO products);
-        # rasterio exposes linear units but many files omit them.
-        return float((res_x + res_y) / 2)
+        # Projected CRS: convert the CRS's own linear unit to metres. This is 1.0 for UTM and
+        # most EO products, but US State Plane zones use survey feet, where assuming metres
+        # would scale every predicted height by 3.28.
+        units_m = getattr(geo, "linear_units_m", 1.0) or 1.0
+        return float((res_x + res_y) / 2 * units_m)
     lat = center_latlon(geo, shape)[0]
     mx = res_x * 111_320.0 * math.cos(math.radians(lat))
     my = res_y * 110_540.0

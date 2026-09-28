@@ -83,6 +83,9 @@ def save_depth_png16(arr: np.ndarray, path: str | Path) -> tuple[Path, dict]:
 
 
 def hillshade(arr: np.ndarray, gsd: float = 1.0, azimuth: float = 315, altitude: float = 45) -> np.ndarray:
+    # np.gradient needs at least two samples along each axis; a 1-pixel image has no slope.
+    if min(arr.shape[:2]) < 2:
+        return np.ones(arr.shape[:2], np.float64)
     gy, gx = np.gradient(arr.astype(np.float64), gsd)
     slope = np.pi / 2 - np.arctan(np.hypot(gx, gy))
     aspect = np.arctan2(-gx, gy)

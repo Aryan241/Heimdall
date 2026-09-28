@@ -1,4 +1,5 @@
 """
+import pytest
 End-to-end robustness tests over awkward but realistic inputs.
 
 These run the *whole* pipeline (backbone-only mode, so they need the Depth Anything V2
@@ -125,3 +126,30 @@ def test_max_side_caps_work_grid(tmp_path):
     src = _write(tmp_path / "big.tif", _scene(600, 600).transpose(2, 0, 1))
     res, meta = _run(tmp_path, src, max_side=128)
     assert max(meta["working_shape"]) <= 128
+
+
+def test_gsd_respects_non_metre_projected_units(tmp_path):
+    """A CRS in US survey feet must not be read as metres — that scales every height by 3.28."""
+    import numpy as np
+    import rasterio
+    from rasterio.transform import from_origin
+
+    from heimdall.geo import gsd_from_geo
+    from heimdall.ingestion.loader import ingest
+
+    path = tmp_path / "feet.tif"
+    with rasterio.open(path, "w", driver="GTiff", height=32, width=32, count=3, dtype="uint8",
+                       crs="EPSG:2263", transform=from_origin(1_000_000, 200_000, 1.0, 1.0)) as dst:
+        dst.write(np.zeros((3, 32, 32), np.uint8))
+    payload = ingest(str(path))
+    assert payload.geo is not None
+    assert gsd_from_geo(payload.geo, payload.image.shape[:2]) == pytest.approx(0.3048, abs=1e-3)
+
+
+def test_hillshade_handles_single_pixel():
+    """np.gradient needs two samples per axis; a 1-pixel raster must not raise."""
+    import numpy as np
+
+    from heimdall.output.writers import hillshade
+
+    assert hillshade(np.array([[5.0]]), gsd=0.33).shape == (1, 1)

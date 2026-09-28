@@ -37,6 +37,7 @@ class GeoInfo:
     bounds: tuple      # (left, bottom, right, top) in CRS units
     resolution: tuple  # (res_x, res_y) in CRS units
     is_geographic: bool = False
+    linear_units_m: float = 1.0   # CRS unit → metres (1.0 for metre CRSs, 0.3048… for feet)
 
 
 @dataclass
@@ -119,6 +120,16 @@ def _try_load_geotiff(path: Path, band_order: Sequence[int] | None) -> ImagePayl
 
         rgb = to_uint8(bands, valid)
         epsg = src.crs.to_epsg() if src.crs else None
+        # Projected CRSs are not always in metres — US State Plane commonly uses survey feet,
+        # and taking its pixel size as metres scales every height by 3.28.
+        units_m = 1.0
+        if src.crs and not src.crs.is_geographic:
+            try:
+                factor = src.crs.linear_units_factor[1]
+                if factor and factor > 0:
+                    units_m = float(factor)
+            except Exception:  # CRS without declared units — metres is the safe assumption
+                pass
         geo = GeoInfo(
             crs_wkt=src.crs.to_wkt(),
             crs_epsg=epsg,
@@ -126,6 +137,7 @@ def _try_load_geotiff(path: Path, band_order: Sequence[int] | None) -> ImagePayl
             bounds=tuple(src.bounds),
             resolution=(src.res[0], src.res[1]),
             is_geographic=bool(src.crs.is_geographic),
+            linear_units_m=units_m,
         )
         logger.info("Loaded georeferenced image: %s  CRS=%s  shape=%s  bands=%s  dtype=%s",
                     path.name, src.crs, rgb.shape[:2], idx, src.dtypes[0])
