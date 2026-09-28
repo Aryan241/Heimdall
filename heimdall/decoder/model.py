@@ -118,6 +118,39 @@ class DomainAdaptationWrapper(nn.Module):
                 maps.append(np.asarray(self.backbone.inference([img]).depth[0], dtype=np.float32))
         return torch.from_numpy(np.stack(maps)).to(rgb_tensor.device).unsqueeze(1)
 
+    def unfreeze_last_blocks(self, n: int) -> list:
+        """Thaw the final *n* transformer blocks of the backbone (ablation E2).
+
+        The backbone is frozen because it was trained on natural, eye-level photography and its
+        general depth prior is what makes single-view geometry work at all. Nadir aerial imagery
+        is a large domain shift, though, so adapting the last few blocks may raise the ceiling
+        the head is working under — at the risk of forgetting that prior, and at the cost of
+        shipping backbone weights rather than a 6.6 MB head.
+
+        Returns the parameters that were thawed, for the optimiser.
+        """
+        if n <= 0:
+            return []
+        # Locate the transformer stack by searching for it rather than hard-coding a path:
+        # the HF wrapper nests its own `backbone`, and the attribute names differ between
+        # model families, so a fixed path is exactly the kind of thing that breaks silently.
+        import torch.nn as nn
+        layers = None
+        best = -1
+        for name, mod in self.backbone.named_modules():
+            if isinstance(mod, nn.ModuleList) and len(mod) >= 6 and len(mod) > best:
+                layers, best = mod, len(mod)
+        if layers is None:
+            raise RuntimeError("Could not locate the backbone's transformer blocks to unfreeze.")
+        thawed = []
+        for block in list(layers)[-n:]:
+            for p in block.parameters():
+                p.requires_grad = True
+                thawed.append(p)
+        logger.info("Unfroze the last %d backbone blocks (%d tensors, %.2f M parameters)",
+                    n, len(thawed), sum(p.numel() for p in thawed) / 1e6)
+        return thawed
+
     def forward(self, rgb_tensor: torch.Tensor, target_height: torch.Tensor | None = None,
                 precomputed_depth: torch.Tensor | None = None) -> dict[str, torch.Tensor]:
         """rgb_tensor: (B,3,H,W) in [0,1]; target_height: (B,1,H,W) metres (optional).
@@ -171,6 +204,13 @@ def load_wrapper(weights: str | Path, device: torch.device, model_key: str | Non
 
     wrapper = DomainAdaptationWrapper(model_key=model_key, device_str=str(device), norm=norm, head=head_kind)
     wrapper.head.load_state_dict(state, strict=True)
+    # A checkpoint from a fine-tuning run carries the adapted backbone as well; without this the
+    # pretrained backbone would be used instead and the head would be paired with features it was
+    # never trained against.
+    if isinstance(ckpt, dict) and ckpt.get("backbone_state_dict"):
+        missing, unexpected = wrapper.backbone.load_state_dict(ckpt["backbone_state_dict"], strict=False)
+        logger.info("Loaded fine-tuned backbone (last %s blocks; %d missing, %d unexpected tensors)",
+                    ckpt.get("unfreeze_blocks", "?"), len(missing), len(unexpected))
     wrapper = wrapper.to(device).eval()
     logger.info("Loaded decoder head %s (backbone %s, epoch %s)", Path(weights).name, model_key,
                 ckpt.get("epoch") if isinstance(ckpt, dict) else "?")

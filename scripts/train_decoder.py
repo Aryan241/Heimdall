@@ -56,6 +56,16 @@ def main() -> int:
     ap.add_argument("--num-workers", "--num_workers", dest="num_workers", type=int, default=2)
     ap.add_argument("--resume", type=Path, default=None, help="Head checkpoint to start from.")
     ap.add_argument("--val-split", default="val", help="Validation split folder (val / test).")
+    ap.add_argument("--height-weight", type=float, default=0.0,
+                    help="Ablation E1: weight of a plain-metres loss term scaled by true height. "
+                         "0 (default) reproduces the shipped model.")
+    ap.add_argument("--height-scale", type=float, default=10.0,
+                    help="Metres at which the height weighting doubles (default 10).")
+    ap.add_argument("--unfreeze-blocks", type=int, default=0,
+                    help="Ablation E2: fine-tune the last N backbone transformer blocks. "
+                         "0 (default) keeps the backbone frozen.")
+    ap.add_argument("--backbone-lr", type=float, default=None,
+                    help="Learning rate for thawed backbone blocks (default: lr/10).")
     ap.add_argument("--val-max", type=int, default=300, help="Max validation tiles per epoch.")
     ap.add_argument("--no-augment", action="store_true")
     ap.add_argument("--max-oom", type=int, default=40,
@@ -112,7 +122,21 @@ def main() -> int:
     model = DomainAdaptationWrapper(model_key=args.model, device_str=str(device),
                                     load_backbone=not have_cache, head=args.head).to(device)
     start_epoch = 1
-    optimizer = torch.optim.AdamW(model.head.parameters(), lr=args.lr, weight_decay=1e-4)
+    if args.height_weight > 0:
+        from heimdall.decoder.loss import MetricDepthLoss
+        model.loss_fn = MetricDepthLoss(alpha=1.0, beta=0.5, gamma=0.1,
+                                        height_weight=args.height_weight,
+                                        height_scale_m=args.height_scale).to(device)
+        log.info("Height-weighted loss enabled: weight %.2f, doubling at %.1f m",
+                 args.height_weight, args.height_scale)
+
+    groups = [{"params": list(model.head.parameters()), "lr": args.lr}]
+    thawed = model.unfreeze_last_blocks(args.unfreeze_blocks) if args.unfreeze_blocks else []
+    if thawed:
+        # A much smaller step for pretrained weights than for the randomly initialised head,
+        # which is what keeps fine-tuning from erasing the prior it is meant to adapt.
+        groups.append({"params": thawed, "lr": args.backbone_lr or args.lr / 10})
+    optimizer = torch.optim.AdamW(groups, lr=args.lr, weight_decay=1e-4)
     if args.resume:
         ckpt = torch.load(args.resume, map_location="cpu", weights_only=False)
         model.head.load_state_dict({k.replace("module.", ""): v for k, v in ckpt["head_state_dict"].items()})
@@ -120,7 +144,10 @@ def main() -> int:
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=args.lr * 0.01)
     scaler = torch.amp.GradScaler("cuda") if use_amp else None
 
-    log.info("Trainable params: %.2f M", sum(p.numel() for p in model.head.parameters()) / 1e6)
+    log.info("Trainable params: %.2f M (head %.2f M + backbone %.2f M)",
+             sum(p.numel() for g in groups for p in g["params"]) / 1e6,
+             sum(p.numel() for p in model.head.parameters()) / 1e6,
+             sum(p.numel() for p in thawed) / 1e6)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     tag = args.tag or args.strata or "all"
     best_rmse = float("inf")
@@ -178,6 +205,11 @@ def main() -> int:
 
         state = {"epoch": epoch, "head_state_dict": model.head.state_dict(), "loss": train_loss,
                  "val": val, "model_key": args.model, "head": args.head}
+        if thawed:
+            # Fine-tuned backbone weights must travel with the head, or the checkpoint silently
+            # reverts to the pretrained backbone and the experiment's result cannot be shipped.
+            state["backbone_state_dict"] = {k: v.cpu() for k, v in model.backbone.state_dict().items()}
+            state["unfreeze_blocks"] = args.unfreeze_blocks
         torch.save({**state, "optimizer_state_dict": optimizer.state_dict()},
                    args.output_dir / f"decoder_ep{epoch:02d}_{tag}.pth")
         score = val.get("rmse", train_loss)

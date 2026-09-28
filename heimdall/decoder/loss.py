@@ -72,15 +72,22 @@ class MetricDepthLoss(nn.Module):
     Combined State-of-the-Art Loss for Metric Depth Estimation.
     Combines SILog Loss (structure), Gradient Matching (edges), and a small L1 term for absolute anchoring.
     """
-    def __init__(self, alpha=1.0, beta=0.5, gamma=0.1):
+    def __init__(self, alpha=1.0, beta=0.5, gamma=0.1, height_weight=0.0, height_scale_m=10.0):
         super().__init__()
         self.silog = SILogLoss(variance_focus=0.85)
         self.grad = GradientMatchingLoss(scales=4)
         self.l1 = nn.L1Loss()
-        
+
         self.alpha = alpha  # SILog weight
         self.beta = beta    # Gradient matching weight
         self.gamma = gamma  # Absolute L1 anchor weight
+        # Optional height-weighted term (ablation E1). SILog works on log1p heights, which
+        # compresses tall objects: a 60 m error on a 100 m building scores only ~3x a 0.5 m
+        # error on a 1 m kerb. This term measures error in plain metres and weights each pixel
+        # by its true height, so buildings stop being a rounding error. 0 disables it, which is
+        # the shipped behaviour.
+        self.height_weight = height_weight
+        self.height_scale_m = height_scale_m
 
     def forward(self, pred: torch.Tensor, target: torch.Tensor) -> dict[str, torch.Tensor]:
         """
@@ -98,10 +105,13 @@ class MetricDepthLoss(nn.Module):
         l_l1 = self.l1(pred[mask], target[mask])
 
         total_loss = self.alpha * l_silog + self.beta * l_grad + self.gamma * l_l1
+        out = {"loss": total_loss, "silog": l_silog.detach(), "grad": l_grad.detach(),
+               "l1": l_l1.detach()}
 
-        return {
-            "loss": total_loss,
-            "silog": l_silog.detach(),
-            "grad": l_grad.detach(),
-            "l1": l_l1.detach()
-        }
+        if self.height_weight > 0:
+            t_m = target[mask].clamp(min=0)
+            w = 1.0 + t_m / self.height_scale_m          # 1x at ground, 2x at 10 m, 3x at 20 m
+            l_hw = ((pred[mask] - t_m).abs() * w).sum() / w.sum().clamp(min=1e-6)
+            out["loss"] = total_loss + self.height_weight * l_hw
+            out["height_weighted"] = l_hw.detach()
+        return out
