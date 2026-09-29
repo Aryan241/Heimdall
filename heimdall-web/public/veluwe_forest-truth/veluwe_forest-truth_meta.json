@@ -44,11 +44,11 @@
   "calibration": {
     "refinement": {
       "method": "segment-wise planar regularisation",
-      "segments": 762,
-      "built_surfaces": 1,
+      "segments": 774,
+      "built_surfaces": 2,
       "pitched": 0,
-      "vegetation_objects": 368,
-      "bimodal_splits": 119,
+      "vegetation_objects": 388,
+      "bimodal_splits": 156,
       "merged_pairs": 0,
       "vehicles": 0,
       "segments_grounded_by_vehicles": 0
@@ -98,7 +98,7 @@
     ],
     "width_m": 599.94,
     "depth_m": 599.94,
-    "height_offset": 42.914676666259766,
+    "height_offset": 42.92298126220703,
     "grid_layers": [
       "surface",
       "ndsm",
@@ -118,12 +118,12 @@
   },
   "warnings": [],
   "timings_s": {
-    "ingest": 0.09,
-    "depth": 22.73,
-    "calibration": 0.19,
-    "outputs": 1.31,
-    "mesh": 0.47,
-    "total": 24.92
+    "ingest": 0.1,
+    "depth": 32.91,
+    "calibration": 0.2,
+    "outputs": 1.56,
+    "mesh": 0.56,
+    "total": 35.46
   },
   "config": {
     "input": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/outputs/demo_sites/veluwe_forest/ortho_0.25m.tif",
@@ -159,13 +159,13 @@
     "reference": "AHN airborne LiDAR (0.5 m), height above ground",
     "held_out": true,
     "metrics": {
-      "rmse": 2.184587185710368,
-      "mae": 1.0208196491553148,
-      "bias": -0.2048644233182749,
-      "nmad": 0.01462046728497371,
-      "le90": 3.9065226316452044,
-      "pearson_r": 0.7872276310541596,
-      "r2": 0.6158850483774645
+      "rmse": 2.1991261351326594,
+      "mae": 1.045559149522885,
+      "bias": 0.07136173626912885,
+      "nmad": 0.04014952450834509,
+      "le90": 3.9448974728584325,
+      "pearson_r": 0.7868545854208933,
+      "r2": 0.6107552816126917
     },
     "predict_zero_rmse": 4.022346552643772,
     "truth_scene": "veluwe_forest-truth",

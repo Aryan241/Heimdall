@@ -44,12 +44,12 @@
   "calibration": {
     "refinement": {
       "method": "segment-wise planar regularisation",
-      "segments": 2681,
-      "built_surfaces": 684,
-      "pitched": 108,
-      "vegetation_objects": 555,
-      "bimodal_splits": 938,
-      "merged_pairs": 174,
+      "segments": 2683,
+      "built_surfaces": 701,
+      "pitched": 68,
+      "vegetation_objects": 638,
+      "bimodal_splits": 1067,
+      "merged_pairs": 192,
       "vehicles": 0,
       "segments_grounded_by_vehicles": 0
     },
@@ -66,22 +66,22 @@
   },
   "stats": {
     "surface": {
-      "min": 2.137525796890259,
-      "max": 16.215404510498047,
-      "mean": 6.547548770904541,
-      "std": 2.9132020473480225,
-      "p02": 2.88344407081604,
-      "p50": 5.726755142211914,
-      "p98": 13.235733032226562
+      "min": 2.1883113384246826,
+      "max": 16.679744720458984,
+      "mean": 6.967770576477051,
+      "std": 3.200467586517334,
+      "p02": 2.9745137691497803,
+      "p50": 6.00813102722168,
+      "p98": 14.094013214111328
     },
     "ndsm": {
       "min": 0.0,
-      "max": 10.27525806427002,
-      "mean": 2.4703128337860107,
-      "std": 2.4883923530578613,
-      "p02": 0.09823255240917206,
-      "p50": 1.208465337753296,
-      "p98": 7.3595685958862305
+      "max": 11.62481689453125,
+      "mean": 2.8905348777770996,
+      "std": 2.8066771030426025,
+      "p02": 0.13707508146762848,
+      "p50": 1.5102331638336182,
+      "p98": 8.378490447998047
     },
     "dtm": {
       "min": 2.0629541873931885,
@@ -92,11 +92,11 @@
       "p50": 3.6531314849853516,
       "p98": 6.86297607421875
     },
-    "built_fraction": 0.38026016573054444
+    "built_fraction": 0.4120568547503815
   },
   "height_png_scale": {
-    "offset_m": 2.137525796890259,
-    "scale_m": 0.0002148146595499777
+    "offset_m": 2.1883113384246826,
+    "scale_m": 0.0002211250992909789
   },
   "mesh": {
     "grid_shape": [
@@ -105,7 +105,7 @@
     ],
     "width_m": 599.94,
     "depth_m": 599.94,
-    "height_offset": 2.7512552738189697,
+    "height_offset": 2.8063225746154785,
     "grid_layers": [
       "surface",
       "ndsm",
@@ -125,12 +125,12 @@
   },
   "warnings": [],
   "timings_s": {
-    "ingest": 0.1,
-    "depth": 21.06,
-    "calibration": 0.19,
-    "outputs": 1.51,
-    "mesh": 0.54,
-    "total": 23.53
+    "ingest": 0.11,
+    "depth": 27.35,
+    "calibration": 0.2,
+    "outputs": 1.7,
+    "mesh": 0.6,
+    "total": 30.14
   },
   "config": {
     "input": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/outputs/demo_sites/utrecht_suburb/ortho_0.25m.tif",
@@ -165,13 +165,13 @@
     "reference": "AHN airborne LiDAR (0.5 m), height above ground",
     "held_out": true,
     "metrics": {
-      "rmse": 2.901823491007163,
-      "mae": 1.887208009794295,
-      "bias": -1.006463090003521,
-      "nmad": 1.4905866678804158,
-      "le90": 4.9741927862167366,
-      "pearson_r": 0.766985898797513,
-      "r2": 0.5021565766857858
+      "rmse": 2.7028667548842917,
+      "mae": 1.7773818947929856,
+      "bias": -0.5862411831398305,
+      "nmad": 1.4307390179112554,
+      "le90": 4.621204590797425,
+      "pearson_r": 0.7723211434803813,
+      "r2": 0.568083233556655
     },
     "predict_zero_rmse": 5.385358129811973,
     "truth_scene": "utrecht_suburb-truth",

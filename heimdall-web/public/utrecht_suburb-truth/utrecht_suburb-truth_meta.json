@@ -44,12 +44,12 @@
   "calibration": {
     "refinement": {
       "method": "segment-wise planar regularisation",
-      "segments": 2681,
-      "built_surfaces": 684,
-      "pitched": 108,
-      "vegetation_objects": 555,
-      "bimodal_splits": 938,
-      "merged_pairs": 174,
+      "segments": 2683,
+      "built_surfaces": 701,
+      "pitched": 68,
+      "vegetation_objects": 638,
+      "bimodal_splits": 1067,
+      "merged_pairs": 192,
       "vehicles": 0,
       "segments_grounded_by_vehicles": 0
     },
@@ -98,7 +98,7 @@
     ],
     "width_m": 599.94,
     "depth_m": 599.94,
-    "height_offset": 2.7512552738189697,
+    "height_offset": 2.8063225746154785,
     "grid_layers": [
       "surface",
       "ndsm",
@@ -118,12 +118,12 @@
   },
   "warnings": [],
   "timings_s": {
-    "ingest": 0.1,
-    "depth": 21.06,
-    "calibration": 0.19,
-    "outputs": 1.51,
-    "mesh": 0.54,
-    "total": 23.53
+    "ingest": 0.11,
+    "depth": 27.35,
+    "calibration": 0.2,
+    "outputs": 1.7,
+    "mesh": 0.6,
+    "total": 30.14
   },
   "config": {
     "input": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/outputs/demo_sites/utrecht_suburb/ortho_0.25m.tif",
@@ -159,13 +159,13 @@
     "reference": "AHN airborne LiDAR (0.5 m), height above ground",
     "held_out": true,
     "metrics": {
-      "rmse": 2.901823491007163,
-      "mae": 1.887208009794295,
-      "bias": -1.006463090003521,
-      "nmad": 1.4905866678804158,
-      "le90": 4.9741927862167366,
-      "pearson_r": 0.766985898797513,
-      "r2": 0.5021565766857858
+      "rmse": 2.7028667548842917,
+      "mae": 1.7773818947929856,
+      "bias": -0.5862411831398305,
+      "nmad": 1.4307390179112554,
+      "le90": 4.621204590797425,
+      "pearson_r": 0.7723211434803813,
+      "r2": 0.568083233556655
     },
     "predict_zero_rmse": 5.385358129811973,
     "truth_scene": "utrecht_suburb-truth",

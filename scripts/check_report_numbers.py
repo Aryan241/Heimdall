@@ -63,10 +63,23 @@ def _tables(text: str) -> list[tuple[list[str], list[list[str]]]]:
 
 
 def main() -> int:
-    bench_path = REPO / "outputs" / "benchmark_gsd" / "results.json"
+    # benchmark_ahn is what scripts/finalise_model.sh rewrites when a model is installed, so
+    # it is canonical. Preferring benchmark_gsd here meant that after installing a new head
+    # this script happily validated the documentation against the PREVIOUS model's results
+    # and reported no drift — the precise failure it exists to catch.
+    bench_path = REPO / "outputs" / "benchmark_ahn" / "results.json"
     if not bench_path.exists():
-        bench_path = REPO / "outputs" / "benchmark_ahn" / "results.json"
+        bench_path = REPO / "outputs" / "benchmark_gsd" / "results.json"
     bench = json.loads(bench_path.read_text()) if bench_path.exists() else []
+    ckpt = REPO / "checkpoints" / "decoder" / "decoder_best.pth"
+    if bench_path.exists() and ckpt.exists() and bench_path.stat().st_mtime < ckpt.stat().st_mtime:
+        print(f"  STALE  {bench_path.relative_to(REPO)} predates the installed checkpoint — "
+              f"re-run scripts/benchmark_ahn.py before trusting this")
+        return 1
+    other = REPO / "outputs" / "benchmark_gsd" / "results.json"
+    if other.exists() and ckpt.exists() and other.stat().st_mtime < ckpt.stat().st_mtime:
+        print(f"  note: {other.relative_to(REPO)} is older than the checkpoint; any figure "
+              f"quoted from it is stale")
     gamus_path = REPO / "outputs" / "gamus_test.json"
     gamus = json.loads(gamus_path.read_text()) if gamus_path.exists() else {}
 

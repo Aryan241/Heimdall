@@ -44,11 +44,11 @@
   "calibration": {
     "refinement": {
       "method": "segment-wise planar regularisation",
-      "segments": 762,
-      "built_surfaces": 1,
+      "segments": 774,
+      "built_surfaces": 2,
       "pitched": 0,
-      "vegetation_objects": 368,
-      "bimodal_splits": 119,
+      "vegetation_objects": 388,
+      "bimodal_splits": 156,
       "merged_pairs": 0,
       "vehicles": 0,
       "segments_grounded_by_vehicles": 0
@@ -66,22 +66,22 @@
   },
   "stats": {
     "surface": {
-      "min": 42.82671356201172,
-      "max": 67.47238159179688,
-      "mean": 49.079830169677734,
-      "std": 6.719088554382324,
-      "p02": 43.01160430908203,
-      "p50": 44.5279541015625,
-      "p98": 63.74200439453125
+      "min": 42.82699966430664,
+      "max": 69.09315490722656,
+      "mean": 49.356056213378906,
+      "std": 7.089013576507568,
+      "p02": 43.0230598449707,
+      "p50": 44.559974670410156,
+      "p98": 64.97362518310547
     },
     "ndsm": {
       "min": 0.0,
-      "max": 9.952446937561035,
-      "mean": 1.732869029045105,
-      "std": 2.6988933086395264,
+      "max": 11.579524040222168,
+      "mean": 2.0090951919555664,
+      "std": 3.0883097648620605,
       "p02": 0.0,
-      "p50": 0.0,
-      "p98": 7.836042404174805
+      "p50": 0.041299909353256226,
+      "p98": 8.965867042541504
     },
     "dtm": {
       "min": 42.82671356201172,
@@ -92,11 +92,11 @@
       "p50": 44.512611389160156,
       "p98": 57.21604919433594
     },
-    "built_fraction": 0.28465830631467987
+    "built_fraction": 0.29273273862039667
   },
   "height_png_scale": {
-    "offset_m": 42.82671356201172,
-    "scale_m": 0.00037606878812520265
+    "offset_m": 42.82699966430664,
+    "scale_m": 0.0004007958379937426
   },
   "mesh": {
     "grid_shape": [
@@ -105,7 +105,7 @@
     ],
     "width_m": 599.94,
     "depth_m": 599.94,
-    "height_offset": 42.914676666259766,
+    "height_offset": 42.92298126220703,
     "grid_layers": [
       "surface",
       "ndsm",
@@ -125,12 +125,12 @@
   },
   "warnings": [],
   "timings_s": {
-    "ingest": 0.09,
-    "depth": 22.73,
-    "calibration": 0.19,
-    "outputs": 1.31,
-    "mesh": 0.47,
-    "total": 24.92
+    "ingest": 0.1,
+    "depth": 32.91,
+    "calibration": 0.2,
+    "outputs": 1.56,
+    "mesh": 0.56,
+    "total": 35.46
   },
   "config": {
     "input": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/outputs/demo_sites/veluwe_forest/ortho_0.25m.tif",
@@ -165,13 +165,13 @@
     "reference": "AHN airborne LiDAR (0.5 m), height above ground",
     "held_out": true,
     "metrics": {
-      "rmse": 2.184587185710368,
-      "mae": 1.0208196491553148,
-      "bias": -0.2048644233182749,
-      "nmad": 0.01462046728497371,
-      "le90": 3.9065226316452044,
-      "pearson_r": 0.7872276310541596,
-      "r2": 0.6158850483774645
+      "rmse": 2.1991261351326594,
+      "mae": 1.045559149522885,
+      "bias": 0.07136173626912885,
+      "nmad": 0.04014952450834509,
+      "le90": 3.9448974728584325,
+      "pearson_r": 0.7868545854208933,
+      "r2": 0.6107552816126917
     },
     "predict_zero_rmse": 4.022346552643772,
     "truth_scene": "veluwe_forest-truth",

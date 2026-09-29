@@ -44,12 +44,12 @@
   "calibration": {
     "refinement": {
       "method": "segment-wise planar regularisation",
-      "segments": 1761,
-      "built_surfaces": 248,
-      "pitched": 41,
-      "vegetation_objects": 459,
-      "bimodal_splits": 409,
-      "merged_pairs": 29,
+      "segments": 1759,
+      "built_surfaces": 259,
+      "pitched": 31,
+      "vegetation_objects": 500,
+      "bimodal_splits": 487,
+      "merged_pairs": 34,
       "vehicles": 9,
       "segments_grounded_by_vehicles": 5
     },
@@ -98,7 +98,7 @@
     ],
     "width_m": 599.94,
     "depth_m": 599.94,
-    "height_offset": 68.591552734375,
+    "height_offset": 68.60010528564453,
     "grid_layers": [
       "surface",
       "ndsm",
@@ -118,12 +118,12 @@
   },
   "warnings": [],
   "timings_s": {
-    "ingest": 0.09,
-    "depth": 20.31,
-    "calibration": 0.18,
-    "outputs": 1.42,
-    "mesh": 0.47,
-    "total": 22.61
+    "ingest": 0.19,
+    "depth": 30.04,
+    "calibration": 0.21,
+    "outputs": 1.65,
+    "mesh": 1.13,
+    "total": 33.38
   },
   "config": {
     "input": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/outputs/demo_sites/valkenburg_hills/ortho_0.25m.tif",
@@ -159,13 +159,13 @@
     "reference": "AHN airborne LiDAR (0.5 m), height above ground",
     "held_out": true,
     "metrics": {
-      "rmse": 2.9826960972169116,
-      "mae": 1.5202360620574484,
-      "bias": -0.7531934609597963,
-      "nmad": 0.503491504863976,
-      "le90": 4.755465984344483,
-      "pearson_r": 0.706813507128482,
-      "r2": 0.43793216400893675
+      "rmse": 2.88096176403292,
+      "mae": 1.5009464671193637,
+      "bias": -0.44668006696959167,
+      "nmad": 0.5583522147125448,
+      "le90": 4.553384257853032,
+      "pearson_r": 0.7015340350687888,
+      "r2": 0.4756204933557169
     },
     "predict_zero_rmse": 4.614269751963073,
     "truth_scene": "valkenburg_hills-truth",
