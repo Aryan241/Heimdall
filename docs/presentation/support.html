@@ -79,7 +79,7 @@ single most common way to lose a technical audience is a slide they have to read
 <td>524 was a subset. GAMUS alone is 87% urban, so AHN adds forest, farmland and hills.</td></tr>
 <tr><td><b>Epochs</b></td><td>78</td><td>30 (best at epoch 28)</td><td>Different run entirely.</td></tr>
 <tr><td><b>Headline accuracy</b></td><td>2.18 m RMSE</td><td><b>5.50 m RMSE</b> on eight held-out LiDAR sites</td>
-<td>2.18 m was in-domain validation. 5.50 m is measured on Dutch sites never seen in training, scored against airborne LiDAR — a far harder and more honest test.</td></tr>
+<td>Different measurements, not a corrected one. See the note below — this is the single most important thing to get right.</td></tr>
 <tr><td><b>Comparison claim</b></td><td>"3.9× improvement over the heuristic baseline"</td>
 <td><b>1.52× better than predicting zero height</b> (8.37 m → 5.50 m)</td>
 <td>Use a baseline a judge can verify. Predict-zero is the standard reference for height estimation.</td></tr>
@@ -89,12 +89,57 @@ single most common way to lose a technical audience is a slide they have to read
 <tr><td><b>Inference</b></td><td>~1–2 s per tile</td><td>4.5 s per 400 m site (1600×1600 px) on Apple MPS</td><td>Measured across the eight benchmark sites.</td></tr>
 </table>
 
-<div class="good">
-<b>The honest framing is the stronger one.</b> "2.18 m" invites the question <i>on what data?</i>
-"5.50 m RMSE against airborne LiDAR on eight sites the model has never seen, versus 8.37 m for
-predicting nothing" survives that question. Judges who work with elevation data will know that a
-validation-split number and a held-out-LiDAR number are not the same thing.
-</div>
+<h3>The 2.18 m figure — what it is, and why not to reuse it</h3>
+<p>Traced to <code>outputs/legacy_docs/PROJECT_REPORT_v1_original.md</code>, which records:</p>
+<table>
+<tr><th style="width:52%">Model</th><th>RMSE</th><th>MAE</th></tr>
+<tr><td>Heuristic baseline (DA2 + 30 m cap)</td><td>8.42 m</td><td>6.18 m</td></tr>
+<tr><td><b>DA3 Metric-L + ASPP head</b></td><td><b>2.18 m</b></td><td>1.64 m</td></tr>
+</table>
+<p>The "3.9× improvement" is simply 8.42 ÷ 2.18. Both figures are measured on <b>GAMUS</b>, the
+dataset the model was trained on.</p>
+<p><b>Nothing about that number is dishonest.</b> It was computed correctly and reporting it was
+reasonable. The problem is only how the deck labels it: <i>"2.18 m average height accuracy"</i>
+reads as a general claim about the system, when it measures how well the model fits data resembling
+its own training set.</p>
+<p>We can now say what that same architecture does on unfamiliar ground. <code>decoder_ep78_all.pth</code>
+carries <code>model_key: da3-metric-l</code> — the DA3 Metric-Large backbone the old deck names, at
+the epoch count it quotes. Scored against airborne LiDAR on eight Dutch sites it never saw, that
+architecture reaches <b>7.44 m RMSE, r = 0.377</b> (§9). Our current model reaches
+<b>5.50 m, r = 0.656</b> on the same test.</p>
+<h4>"But 5.50 is a bigger number than 2.18 — isn't the new model worse?"</h4>
+<p><b>This is the first question everyone asks, including our own team. Be ready for it.</b>
+The two numbers come from different tests, so comparing them directly is meaningless. Compare the
+two architectures on the <i>same</i> test instead — the eight Dutch LiDAR sites, same script, same
+metric:</p>
+<table>
+<tr><th style="width:48%">Architecture</th><th>RMSE</th><th>Correlation</th></tr>
+<tr><td>DA3 Metric-L + ASPP head <span style="color:#777">(what the old deck describes)</span></td>
+<td>7.44 m</td><td>0.377</td></tr>
+<tr style="background:#eef7ee"><td><b>DA2 Base + multiscale head + height-weighted loss</b>
+<span style="color:#777">(current)</span></td><td><b>5.50 m</b></td><td><b>0.656</b></td></tr>
+</table>
+<p>On identical data the current model is <b>1.94 m more accurate and correlates nearly twice as
+well</b> with real height. The redesign was a substantial win — it only looks like a regression if
+you compare a held-out number against an in-domain one.</p>
+<p>Why 2.18 m had no unseen data to use: the legacy training log records <b>262 batches per epoch
+over a 524-tile dataset</b> — a batch size of 2, so all 524 tiles passed through training every
+epoch — and the report never mentions a held-out split. The figure therefore measures how closely
+the model reproduced heights it had already been trained on.</p>
+<div class="slide"><b>How to say this out loud if asked.</b> <i>"The older number was measured on the
+training data; 5.50 m is measured on eight Dutch sites the model has never seen, against airborne
+LiDAR. On that same honest test the old architecture scores 7.44 metres, so the current model is
+roughly two metres better."</i></div>
+<div class="warn"><b>So reusing the old slide would claim 2.18 m for an architecture that measures
+7.44 m on honest data — worse than what we actually ship.</b> It would also commit us publicly to
+the metric backbone, which is precisely the design we tested, measured at 0.06 correlation on
+orthomosaics, and replaced. If a judge asked us to demonstrate that claim on their imagery, we
+could not.</div>
+<div class="good"><b>The replacement claim is stronger because it survives scrutiny.</b> "5.50 m RMSE
+against airborne LiDAR on eight sites never seen in training, versus 8.37 m for predicting nothing"
+answers <i>on what data?</i> before it is asked. Anyone who works with elevation data knows an
+in-domain number and a held-out number are different questions, and will trust the team that
+volunteers the distinction.</div>
 
 <div class="pagebreak"></div>
 <h2>3 · Slide 1 — Title page</h2>
@@ -287,7 +332,7 @@ beside them, so anyone can fly through our output and the real measurement side 
 
 <div class="warn">
 <b>Say the limitation out loud; it reads as rigour.</b> Buildings and trees carry <b>94.5%</b> of all
-remaining error, and both are under-predicted (−6.7 m and −6.0 m bias). This is not a tuning
+remaining error, and both are under-predicted (−6.67 m and −5.95 m bias). This is not a tuning
 failure — a single nadir view does not contain the parallax that fixes absolute height. We proved
 it: four independently trained models (different loss, different capacity, 2× the data) land within
 <b>0.35 m</b> of each other on any given site, while the spread <i>between</i> sites is <b>15.5 m</b>.
@@ -451,7 +496,7 @@ model is forced to average. The limit is information in the image, not model siz
 
 <h2>11 · Appendix C — Known limitations (state these before you are asked)</h2>
 <ul>
-<li><b>Tall structures are under-predicted</b> — building bias −6.7 m, tree bias −6.0 m. A single
+<li><b>Tall structures are under-predicted</b> — building bias −6.67 m, tree bias −5.95 m. A single
 nadir view lacks the parallax that fixes absolute height.</li>
 <li><b>Dense high-rise is the hardest case</b> — Rotterdam centre 16.69 m RMSE, against 22.92 m for
 predicting nothing. We help, but the canyon geometry is genuinely ambiguous from above.</li>
@@ -478,9 +523,14 @@ genuinely ambiguous, we under-predict, and we publish that bias.</td></tr>
 true height was 0.06 — effectively zero. Relative depth survives the projection change at 0.41.</td></tr>
 <tr><td><i>"5.50 m sounds large."</i></td>
 <td>It is dominated by tall structures. Ground and low vegetation — most of any image — are
-sub-metre (0.87 m and 0.95 m). The alternative of predicting nothing scores 8.37 m. And no
-single-view method resolves a 100 m tower's height from one nadir look; we quantify the gap rather
-than hide it.</td></tr>
+sub-metre (0.87 m and 0.95 m). Predicting nothing scores 8.37 m. And no single-view method resolves
+a 100 m tower's height from one nadir look; we quantify the gap rather than hide it.</td></tr>
+<tr><td><i>"Your earlier material claimed 2.18 m. Has it got worse?"</i></td>
+<td><b>No — those measure different things.</b> 2.18 m was measured on the training data (the
+legacy log shows all 524 GAMUS tiles passing through training each epoch, with no held-out split).
+5.50 m is measured on eight Dutch sites the model has never seen, against airborne LiDAR. On that
+same honest test the older architecture scores <b>7.44 m at r 0.377</b>, against <b>5.50 m at
+r 0.656</b> today — so the current model is about two metres better. See §2.</td></tr>
 <tr><td><i>"Have you tested on ISRO imagery?"</i></td>
 <td>Not yet — we have no ISRO LiDAR ground truth to score against. What we <i>have</i> tested is
 resolution robustness: performance is flat from 0.25 m to 1 m and degrades gracefully at 2 m, which
