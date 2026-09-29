@@ -314,11 +314,43 @@ the table above and the ship criterion use.
 worked, sampled across the landscape types the PS grades, to compensate for GAMUS being 87%
 urban. Doubling the training set moved the benchmark backwards by 0.07 m.
 
-The most likely reading is that the extra tiles were more of the same. `build_ahn_dataset.py`
-samples the Netherlands, and the Netherlands is flat, Northern-European and largely built or
-farmed. Going from 2 800 to 11 000 Dutch tiles adds volume but little that is new, while
-shifting the training mixture further towards Dutch imagery and away from GAMUS. The slight
-regression is what a mixture shift towards an over-represented domain looks like.
+**First, how much of that is real.** 0.07 m is 1.2% of the baseline, and we have no
+seed-repeated run to estimate run-to-run variation, so we cannot distinguish "slightly worse"
+from "the same". The claim this result supports is **more data did not help** — the same
+conclusion as E2, not a stronger one. A seed repeat is cheap on Kaggle and is the honest way to
+put an error bar on all three results; it has not been run.
+
+**Three explanations that do not survive checking.**
+
+*Overfitting.* The natural first guess, and the wrong one. More data is the standard remedy for
+overfitting, so quadrupling AHN and getting no gain is the opposite of that mechanism. The
+signature is absent too: overfitting shows validation loss rising while training loss falls, and
+E3's validation RMSE was still improving at the end (3.894 → 3.884 over the last two epochs).
+The trainable head is 6.6 MB against 16 004 tiles — far from a capacity-limited regime — and E2
+adding 28 M trainable parameters changed nothing, which is independent evidence that we are not
+near an overfitting boundary.
+
+*Under-training.* The learning rate is cosine-annealed per epoch over 30 epochs
+(`train_decoder.py:144`), and E3 had 2.05× the optimiser steps within each one. It received
+more gradient updates on the same schedule shape, not fewer.
+
+*A shift in the training mixture.* AHN's share went from 36% to 69% of tiles. This was my first
+explanation and it is **wrong**: the eight benchmark sites are themselves Dutch AHN/PDOK data,
+so a mixture shift towards Dutch imagery should have *helped* on this benchmark, not hurt.
+Nor did the AHN distribution itself change — `build_ahn_dataset.py` samples fixed regional
+shares (30% urban, 20% hilly, 20% forested, 15% sparse, 15% mixed), so 11 000 tiles are drawn
+from the same five regions in the same proportions as 2 800. More tiles, same distribution.
+
+**What is left, and it is the same wall E2 hit.** Four times the tiles, drawn from the same
+distribution, carry roughly the same information. The limit is not how many Dutch examples the
+head has seen; it is that a single nadir view of a building or a tree canopy does not contain
+the parallax that fixes its absolute height, and no quantity of examples of that ambiguity
+resolves it.
+
+This matters for the evaluation data specifically. If more Dutch tiles do not help, the gap that
+remains is not a shortage of examples — it is a shortage of *variety*, and in particular of the
+terrain the PS names that neither GAMUS nor AHN contains: real relief beyond South Limburg, and
+Indian urban form. More of either existing source will not close it.
 
 This matters for the evaluation data specifically. If more Dutch tiles do not help, the gap that
 remains is not a shortage of examples — it is a shortage of *variety*, and in particular of the
@@ -334,12 +366,13 @@ either existing source will not close it.
 | baseline | — | 5.68 m | |
 | **E1** | **the loss function** | **5.50 m** | **the only gain** |
 | E2 | model capacity (unfroze 4 blocks) | 5.68 m | no effect |
-| E3 | training data volume (2.05×) | 5.75 m | slightly worse |
+| E3 | training data volume (2.05×) | 5.75 m | no gain (−1.2%, within unmeasured noise) |
 
 The three experiments changed three different things — the objective, the capacity, the data —
 and only the objective mattered. Neither letting the backbone adapt nor doubling the training
 set moved the benchmark at all, while re-weighting the loss towards tall structures moved it
-0.18 m in one run costing no extra time.
+0.18 m in one run costing no extra time — two and a half times E3's regression, in the opposite
+direction.
 
 That is a coherent finding rather than three isolated results. The model was not short of
 capacity or short of examples; it was optimising a score that barely cared about the pixels
