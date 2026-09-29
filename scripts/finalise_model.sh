@@ -54,6 +54,10 @@ if has demo; then
 fi
 
 say "5/5 Numbers for PROJECT_REPORT.md section 4.4"
+# The documentation quotes these figures; if it still carries the previous model's, say so here
+# rather than letting a reviewer find it.
+$PY scripts/check_report_numbers.py || echo "  ^ update the tables above before committing"
+
 [ -f outputs/benchmark_ahn/results.md ] && cat outputs/benchmark_ahn/results.md
 [ -f outputs/gamus_test.json ] && $PY - <<'EOF'
 import json
