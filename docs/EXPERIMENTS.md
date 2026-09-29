@@ -223,7 +223,7 @@ Filled in as runs complete. A run ships only if it meets the criterion stated ab
 | Run | Change | AHN 8-site RMSE | mean r | Best val RMSE | Shipped |
 |---|---|---|---|---|---|
 | baseline | frozen DA2-B + multiscale head | **5.68 m** | 0.662 | 3.850 m | **current** |
-| E1 | height-weighted loss | running | | | |
+| **E1** | **height-weighted loss** | **5.50 m** | 0.656 | **3.809 m** | **candidate** |
 | **E2** | **unfrozen last 4 blocks** | **5.68 m** | **0.674** | 3.866 m | **no** |
 | E3 | 4× AHN tiles | running | | | |
 
@@ -255,4 +255,36 @@ single nadir view genuinely lacks the parallax to resolve absolute height — no
 representation.
 
 That makes E1's premise — that the *loss* under-weights tall structures — the better bet, and
-it is the experiment still running.
+E1 is where the gain actually appeared.
+
+### E1 — height-weighted loss: the one that works
+
+Thirty epochs with each pixel's L1 term weighted by `1 + h/10`, so a 30 m building counts four
+times a kerb instead of the roughly equal weight `log1p` was giving them. 404 s per epoch —
+the extra term costs nothing measurable.
+
+| | baseline | E1 | change |
+|---|---|---|---|
+| AHN 8-site mean RMSE | 5.68 m | **5.50 m** | **−0.18 m** |
+| AHN 8-site mean MAE | 3.26 m | **3.17 m** | −0.09 m |
+| mean correlation | 0.662 | 0.656 | −0.006 |
+| best validation RMSE | 3.850 m | **3.809 m** | −0.041 m |
+
+A 3.2% reduction in RMSE and 2.8% in MAE, reproduced on both the validation split and the eight
+held-out LiDAR sites, which are different data measured by a different instrument. Two
+independent measurements moving together is what distinguishes this from E2's noise-level tie.
+
+The slight correlation dip is the signature of the intended mechanism rather than a
+counter-indication. Correlation is scale- and offset-free: it measures whether the predicted
+surface has the right *shape*. RMSE and MAE measure whether it is at the right *height*. A
+change that improves the latter while very slightly costing the former has moved absolute
+heights towards the truth — which is exactly what weighting tall pixels was meant to do, and
+exactly what the −2.47 m building bias called for.
+
+**The risk the plan named has not been checked yet.** The concern written down before the run
+was that attention moved towards tall objects comes out of ground, road and low vegetation —
+sub-metre today, the majority of pixels in any image, and what makes the output *feel*
+accurate. The Kaggle cells ran `benchmark_ahn.py` but not `eval.py` on the GAMUS test split, so
+the per-class figures the second half of the criterion needs do not exist yet. Until they do,
+E1 is a **candidate, not a decision**: `scripts/compare_checkpoint.py` will apply both halves of
+the rule mechanically once the checkpoint is in hand.
