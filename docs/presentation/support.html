@@ -1,0 +1,550 @@
+<!doctype html><html><head><meta charset="utf-8"><title>DepthWizard — Presentation Support</title>
+<style>
+@page { size: A4; margin: 14mm 13mm; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 9.6pt;
+       line-height: 1.45; color: #1a1a1a; margin: 0; }
+h1 { font-size: 20pt; color: #1f3864; margin: 0 0 2mm; letter-spacing: -.3px; }
+h2 { font-size: 13pt; color: #1f3864; margin: 7mm 0 2mm; padding-bottom: 1.2mm;
+     border-bottom: 2px solid #2e75b6; page-break-after: avoid; }
+h3 { font-size: 10.6pt; color: #2e75b6; margin: 4.5mm 0 1.5mm; page-break-after: avoid; }
+h4 { font-size: 9.6pt; color: #1f3864; margin: 3.5mm 0 1mm; page-break-after: avoid; }
+p, li { margin: 0 0 1.6mm; }
+ul { margin: 0 0 2mm; padding-left: 4.5mm; }
+li { margin-bottom: 1.1mm; }
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 3mm; font-size: 8.5pt;
+        page-break-inside: avoid; }
+th { background: #1f3864; color: #fff; text-align: left; padding: 1.5mm 2mm; font-weight: 600; }
+td { border-bottom: 1px solid #dde3ec; padding: 1.3mm 2mm; vertical-align: top; }
+tr:nth-child(even) td { background: #f6f8fb; }
+code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 8.4pt;
+       background: #eef2f7; padding: .3mm 1mm; border-radius: 2px; }
+img { width: 100%; margin: 2mm 0 1mm; }
+.fig { page-break-inside: avoid; margin-bottom: 3mm; }
+.cap { font-size: 7.8pt; color: #666; font-style: italic; margin-top: -.5mm; }
+.slide { background: #f6f8fb; border-left: 3.5px solid #2e75b6; padding: 2.5mm 3mm;
+         margin: 3mm 0; page-break-inside: avoid; }
+.warn { background: #fff4e5; border-left: 3.5px solid #c55a11; padding: 2.5mm 3mm; margin: 3mm 0; }
+.good { background: #eef7ee; border-left: 3.5px solid #2e7d32; padding: 2.5mm 3mm; margin: 3mm 0; }
+.bullet { background:#fff; border:1px solid #c9d4e4; border-radius:3px; padding:2mm 3mm; margin:1.5mm 0; }
+.bullet b { color:#1f3864; }
+.lead { font-size: 10.4pt; color: #444; margin-bottom: 4mm; }
+.pagebreak { page-break-before: always; }
+.meta { font-size: 8pt; color: #777; border-top: 1px solid #ddd; padding-top: 1.5mm; margin-top: 2mm; }
+.kv { display: flex; gap: 3mm; flex-wrap: wrap; margin: 2mm 0; }
+.kv div { flex: 1 1 30%; background: #f6f8fb; border-radius: 3px; padding: 2mm 2.5mm; }
+.kv .n { font-size: 15pt; color: #1f3864; font-weight: 700; display: block; line-height: 1.1; }
+.kv .l { font-size: 7.6pt; color: #666; }
+del { color: #b00; } ins { color: #2e7d32; text-decoration: none; font-weight: 600; }
+</style></head><body>
+<h1>DepthWizard — Presentation Support Pack</h1>
+<p class="lead">Everything needed to build the six-slide SIH 2026 idea submission, with every figure
+traced to a measurement in the repository. Prepared 29 September 2026 against the shipped model
+(<code>decoder_best.pth</code>, epoch 28). <b>This is source material, not slide copy</b> — it is
+deliberately longer than the deck.</p>
+
+<div class="warn">
+<b>Read this first: the existing deck is substantially out of date.</b> It describes an earlier
+architecture that was measured, found wanting, and replaced. Presenting it as-is would state
+things about the system that are no longer true, and the accuracy claim in it is not comparable
+to the one we can now defend. Every correction is listed in section 2.
+</div>
+
+
+<h2>1 · How to use this pack</h2>
+<table>
+<tr><th style="width:26%">Section</th><th>Use it for</th></tr>
+<tr><td><b>§2 Corrections</b></td><td><b>Read before writing any slide.</b> The old deck describes a different system.</td></tr>
+<tr><td>§3–§8</td><td>One section per slide, in template order. Text in bordered boxes is close to slide-ready; the rest is background.</td></tr>
+<tr><td>§9–§14</td><td>Appendices — numbers, experiment log, limitations, prepared answers, shippability.</td></tr>
+<tr><td>Figures 1–5</td><td>Print-ready at 200 dpi. Drop straight into slides.</td></tr>
+</table>
+<div class="slide"><b>Slide discipline.</b> Six slides, so roughly <b>3 bullets and one visual each</b>,
+under 30 words per bullet. Everything else here is what you <i>say</i>, not what you print. The
+single most common way to lose a technical audience is a slide they have to read while you talk.</div>
+<div class="slide"><b>If you take three numbers to the room, take these.</b>
+<b>5.50 m</b> RMSE against airborne LiDAR on eight sites never seen in training ·
+<b>8.37 m</b> for predicting nothing, which is what we beat ·
+<b>0.87 m</b> on ground, because most of any image is ground.</div>
+
+<h2>2 · Corrections to the previous deck</h2>
+<table>
+<tr><th style="width:21%">Item</th><th style="width:29%">Old deck says</th><th style="width:29%">Current reality</th><th>Why it changed</th></tr>
+<tr><td><b>Backbone</b></td><td>Depth Anything V3 <b>Metric</b>-Large, ~335 M</td>
+<td>Depth Anything <b>V2 Base</b>, 97.5 M, frozen</td>
+<td>Metric models assume a pinhole camera and <b>collapse on nadir orthomosaics</b> (correlation with true height 0.06). Relative-depth models work: DA2-Base reaches 0.41 frozen.</td></tr>
+<tr><td><b>Head</b></td><td>ASPP multi-dilation head</td><td>Multi-scale DPT-pyramid head, 1.72 M trainable</td>
+<td>Decoding the full feature pyramid beat a single-scale head; ASPP was the earlier design.</td></tr>
+<tr><td><b>Training data</b></td><td>GAMUS, 524 tiles</td><td><b>7 804 tiles</b> — 5 004 GAMUS + 2 800 Dutch AHN LiDAR at two resolutions</td>
+<td>524 was a subset. GAMUS alone is 87% urban, so AHN adds forest, farmland and hills.</td></tr>
+<tr><td><b>Epochs</b></td><td>78</td><td>30 (best at epoch 28)</td><td>Different run entirely.</td></tr>
+<tr><td><b>Headline accuracy</b></td><td>2.18 m RMSE</td><td><b>5.50 m RMSE</b> on eight held-out LiDAR sites</td>
+<td>2.18 m was in-domain validation. 5.50 m is measured on Dutch sites never seen in training, scored against airborne LiDAR — a far harder and more honest test.</td></tr>
+<tr><td><b>Comparison claim</b></td><td>"3.9× improvement over the heuristic baseline"</td>
+<td><b>1.52× better than predicting zero height</b> (8.37 m → 5.50 m)</td>
+<td>Use a baseline a judge can verify. Predict-zero is the standard reference for height estimation.</td></tr>
+<tr><td><b>Loss</b></td><td>1.0×SILog + 0.5×Gradient + 0.1×L1</td>
+<td>…<b>+ 0.5 × height-weighted L1</b> (weight = 1 + h/10)</td>
+<td>SILog on log1p compresses tall objects: a 60 m error on a tower scored only ~3× a 0.5 m kerb error. Adding the weighted term cut RMSE from 5.68 to 5.50 m.</td></tr>
+<tr><td><b>Inference</b></td><td>~1–2 s per tile</td><td>4.5 s per 400 m site (1600×1600 px) on Apple MPS</td><td>Measured across the eight benchmark sites.</td></tr>
+</table>
+
+<div class="good">
+<b>The honest framing is the stronger one.</b> "2.18 m" invites the question <i>on what data?</i>
+"5.50 m RMSE against airborne LiDAR on eight sites the model has never seen, versus 8.37 m for
+predicting nothing" survives that question. Judges who work with elevation data will know that a
+validation-split number and a held-out-LiDAR number are not the same thing.
+</div>
+
+<div class="pagebreak"></div>
+<h2>3 · Slide 1 — Title page</h2>
+<table>
+<tr><th style="width:32%">Field</th><th>Value</th></tr>
+<tr><td>Problem Statement ID</td><td><b>26175</b></td></tr>
+<tr><td>Problem Statement Title</td><td>DepthWizard — Single-View Height Estimation and 3D Flythrough</td></tr>
+<tr><td>Organisation</td><td>ISRO — Space Applications Centre (SAC), Image Processing Division</td></tr>
+<tr><td>PS Category</td><td>Software</td></tr>
+<tr><td>Theme</td><td>Space Technology <span style="color:#777">(confirm the exact wording on the portal)</span></td></tr>
+<tr><td>Team ID / Team Name</td><td><span style="color:#777">from the portal</span></td></tr>
+</table>
+
+<h2>4 · Slide 2 — Proposed Solution</h2>
+<p>Three bullets fit comfortably. Below are ready-to-use versions, each defensible.</p>
+
+<div class="bullet"><b>1 — What it does.</b> DepthWizard turns a <b>single</b> RGB image — JPEG, PNG or
+GeoTIFF — into a metric Digital Surface Model and an explorable 3D flythrough in the browser.
+No stereo pair, no LiDAR flight, no InSAR pass.</div>
+
+<div class="bullet"><b>2 — How it gets real metres.</b> A frozen 97.5 M-parameter monocular depth
+backbone supplies <i>relative</i> depth; a lightweight 1.72 M-parameter trainable head converts it
+to <i>absolute</i> height above ground, learned from 7 804 LiDAR-verified tiles. Adding a
+Copernicus GLO-30 terrain datum yields absolute elevation.</div>
+
+<div class="bullet"><b>3 — What makes it accurate.</b> Per-pixel scale and shift rather than one
+global constant; a composite loss that keeps building edges sharp and explicitly weights tall
+structures; and GSD normalisation so a 0.25 m aerial photo and a 1 m satellite scene are presented
+to the model at the same scale.</div>
+
+<h4>The one-sentence version, if you need it</h4>
+<p><i>"A single satellite photograph, in, and a measured 3D city you can fly through, out — at
+5.50 m RMSE against airborne LiDAR on terrain the model has never seen."</i></p>
+
+<h4>Why a judge should care about the design choice</h4>
+<p>The instinctive approach is to use a <b>metric</b> depth model, which outputs metres directly.
+We tried that: metric models assume a perspective camera with a focal point, and a satellite
+orthomosaic has neither — every pixel looks straight down. Correlation with true height was
+<b>0.06</b>, effectively zero. A <b>relative</b>-depth model keeps working (0.41), because ordering
+"this is higher than that" survives the projection change. Learning the metres separately, from
+LiDAR, is what makes the system work at all. <b>This is the single most interesting technical point
+in the project and it belongs in the deck.</b></p>
+
+<h3>How it addresses the problem statement</h3>
+<p>PS 26175 asks for height from a single view and a 3D flythrough, and states that
+<b>ISRO RGB-band optical satellite imagery will be used at final evaluation</b>. Map each
+requirement to evidence — a judge can then tick them off while you talk.</p>
+<table>
+<tr><th style="width:32%">What the PS asks for</th><th style="width:36%">What we do</th><th>Evidence</th></tr>
+<tr><td>Height from a <b>single</b> view</td><td>Frozen relative-depth backbone + trained metric head; no stereo, no LiDAR</td><td>5.50 m RMSE vs airborne LiDAR, 8 held-out sites</td></tr>
+<tr><td>Produce a <b>DSM</b></td><td>nDSM from the model + Copernicus GLO-30 datum → absolute DSM, written as GeoTIFF</td><td>DSM, DTM and nDSM all exported, georeferenced</td></tr>
+<tr><td><b>3D flythrough</b></td><td>Textured glTF mesh in true metres, WebGL viewer with free-fly navigation</td><td>Runs in-browser; three demo scenes bundled</td></tr>
+<tr><td>Works on <b>satellite RGB</b>, not just aerial</td><td>Every input normalised to the 0.33 m training GSD before inference</td><td>Flat 0.25 → 1 m (5.52 → 5.83 m); graceful at 2 m</td></tr>
+<tr><td><b>Stability</b> across urban, sparse, hilly, forested</td><td>Training set deliberately sampled across all four; each measured separately</td><td>urban 9.06 · sparse 1.59 · hilly 3.27 · forested 2.22 m</td></tr>
+<tr><td><b>Standalone deployment</b></td><td>One command; CPU fallback; 6.6 MB head; offline after first fetch</td><td><code>./run.sh</code> on a clean machine</td></tr>
+</table>
+
+<h3>Innovation and uniqueness</h3>
+<div class="bullet"><b>1 — We use a <i>relative</i>-depth model, not a metric one, and we can prove why.</b>
+The obvious choice outputs metres directly. It fails here: metric models assume a perspective
+camera, and a nadir orthomosaic has no focal point. We measured correlation with true height at
+<b>0.06</b> — indistinguishable from noise — against <b>0.41</b> for a relative model. Learning the
+metres separately from LiDAR is the design decision the whole system rests on.</div>
+
+<div class="bullet"><b>2 — Per-pixel scale and shift, not one global constant.</b> A single
+scale factor cannot be right for a roof and the street beside it. The head predicts a scale and a
+shift <i>at every pixel</i> from the DPT feature pyramid.</div>
+
+<div class="bullet"><b>3 — A loss that knows tall things matter.</b> Standard SILog on
+<code>log1p</code> quietly under-weights exactly the structures the task is about: a 60 m error on
+a tower scored barely 3× a 0.5 m kerb error. We added a height-weighted term
+(<code>w = 1 + h/10</code>) and measured the gain in a controlled ablation — <b>5.68 → 5.50 m</b>.
+This is our own contribution, not something taken from a paper.</div>
+
+<div class="bullet"><b>4 — One model, many sensors.</b> GSD normalisation means the same weights
+serve a 0.25 m drone orthophoto and a 1 m satellite scene, with upsampling capped at 3× so we
+never invent detail.</div>
+
+<div class="bullet"><b>5 — We ship the ground truth next to our output.</b> Three demo scenes
+include the airborne-LiDAR surface of the same ground, on the same grid, in the same viewer. Anyone
+can fly through both and judge for themselves. <b>Almost nobody volunteers this.</b></div>
+
+<div class="slide"><b>If only one innovation fits on the slide, use #1 or #5.</b> #1 shows
+engineering judgement backed by measurement; #5 shows confidence. Both are memorable in a way that
+"we used a transformer" is not.</div>
+
+<div class="pagebreak"></div>
+<h2>5 · Slide 3 — Technical Approach</h2>
+<div class="fig"><img src="fig/architecture.png">
+<p class="cap">Figure 1 — Processing pipeline. Drop this straight into the slide; it replaces the
+old five-box diagram, which named the wrong backbone and the wrong head.</p></div>
+
+<h3>Stack</h3>
+<table>
+<tr><th style="width:20%">Layer</th><th style="width:36%">Technology</th><th>Role</th></tr>
+<tr><td>Model</td><td>PyTorch 2.x, Depth Anything V2 Base (HF <code>transformers</code>)</td><td>frozen relative-depth backbone</td></tr>
+<tr><td>Geospatial</td><td>Rasterio / GDAL</td><td>CRS handling, GSD, GeoTIFF read & write</td></tr>
+<tr><td>Mesh</td><td>Trimesh, scikit-image</td><td>textured terrain mesh, glTF/GLB export</td></tr>
+<tr><td>Web</td><td>Next.js 16.3, React 19.2, TypeScript 5</td><td>upload → job → viewer application</td></tr>
+<tr><td>3D</td><td>Three.js 0.185, React Three Fiber 9.7, drei 10.7</td><td>WebGL flythrough, measurement, flood tool</td></tr>
+</table>
+
+<h3>The five stages, in words</h3>
+<ol>
+<li><b>Ingest & normalise.</b> Read the image and its CRS. Compute true ground sample distance —
+including the <code>linear_units_factor</code>, because a CRS in US survey feet would otherwise
+produce heights 3.28× too large. Resample to the 0.33 m training GSD (upsampling capped at 3×).</li>
+<li><b>Relative depth.</b> Frozen DA2-Base over 512² tiles with Hann-blended seams, so a gigapixel
+orthomosaic is processed without seam artefacts and without exceeding GPU memory.</li>
+<li><b>Metric calibration.</b> The trainable DPT-pyramid head predicts a per-pixel scale and shift;
+<code>nDSM = ReLU(scale · depth + shift)</code> gives height above ground.</li>
+<li><b>Terrain datum.</b> Copernicus GLO-30 is fetched automatically and grey-opened to bare earth;
+<code>DSM = DTM + nDSM</code> gives absolute elevation. Ground control points can correct any
+residual offset or tilt.</li>
+<li><b>Outputs.</b> GeoTIFF DSM/DTM/nDSM, hillshade, 16-bit height map, and a textured GLB that the
+browser loads for the flythrough.</li>
+</ol>
+
+<h3>Loss function — and why the last term exists</h3>
+<p><code>L = 1.0·SILog(log1p) + 0.5·GradientMatching(4 scales) + 0.1·L1 + 0.5·HeightWeighted</code></p>
+<ul>
+<li><b>SILog on log1p</b> — scale-invariant, and <code>log1p</code> keeps it finite at 0 m ground.</li>
+<li><b>Gradient matching at four scales</b> — penalises blurred edges, which is what keeps roofs
+looking like roofs instead of hills in the 3D view.</li>
+<li><b>Height-weighted L1</b>, weight <code>1 + h/10</code> — ground counts 1×, a 10 m house 2×, a
+20 m block 3×. <b>Without it the objective barely cared about buildings:</b> the log compressed a
+60 m error on a tower to roughly three times the penalty of a 0.5 m error on a kerb, though it is
+120× larger in metres. Adding it moved benchmark RMSE from 5.68 m to <b>5.50 m</b> and cut
+under-prediction bias from −0.64 m to −0.24 m.</li>
+</ul>
+
+<h3>Engineering details worth one line each on the slide</h3>
+<ul>
+<li>512² sliding-window tiling, Hann-blended seams — handles 8K+ imagery on ordinary GPUs.</li>
+<li>GSD normalisation to 0.33 m — one model serves 0.25 m aerial and 1 m satellite imagery.</li>
+<li>Shipped head is <b>6.6 MB</b>; the backbone is downloaded once and frozen. Edge-deployable.</li>
+<li>Graceful degradation: every optional component (vehicle prior, segmentation, GCPs) is absent-safe.</li>
+</ul>
+
+<div class="pagebreak"></div>
+<h2>6 · Slide 4 — Feasibility and Viability</h2>
+
+<div class="kv">
+<div><span class="n">5.50 m</span><span class="l">RMSE vs airborne LiDAR, 8 held-out sites</span></div>
+<div><span class="n">3.17 m</span><span class="l">MAE, same sites</span></div>
+<div><span class="n">0.656</span><span class="l">correlation with true height</span></div>
+<div><span class="n">8.37 m</span><span class="l">RMSE if you predict nothing (the baseline we beat)</span></div>
+<div><span class="n">6.6 MB</span><span class="l">shipped trainable head</span></div>
+<div><span class="n">4.5 s</span><span class="l">per 400 m site, 1600² px, Apple MPS</span></div>
+</div>
+
+<div class="fig"><img src="fig/per_site.png">
+<p class="cap">Figure 2 — Per-site accuracy against a predict-zero baseline. We beat it on seven of
+eight landscapes. Good slide material: it shows range honestly rather than one flattering average.</p></div>
+
+<h3>It already works end to end</h3>
+<ul>
+<li>Upload → DSM → 3D flythrough runs today, locally and deployed.</li>
+<li><code>./run.sh</code> sets up a clean machine: detects an NVIDIA GPU and installs the matching
+PyTorch build, else CPU.</li>
+<li>36 automated tests pass. Three bundled demo scenes ship with their <b>LiDAR ground truth</b>
+beside them, so anyone can fly through our output and the real measurement side by side.</li>
+</ul>
+
+<h3>Challenges, and what we actually did about each</h3>
+<table>
+<tr><th style="width:30%">Challenge</th><th style="width:35%">Mitigation</th><th>Evidence</th></tr>
+<tr><td><b>Monocular depth has no absolute scale</b></td>
+<td>Freeze the backbone; train a small head to predict per-pixel scale and shift against LiDAR</td>
+<td>Frozen-backbone correlation 0.41 → 0.656 after the head</td></tr>
+<tr><td><b>Metric depth models fail on nadir imagery</b></td>
+<td>Use a <i>relative</i>-depth backbone and learn metres separately</td>
+<td>Metric backbone correlation 0.06 vs relative 0.41 — measured, and the reason for the redesign</td></tr>
+<tr><td><b>Tall structures dominate the error</b></td>
+<td>Height-weighted loss term, <code>w = 1 + h/10</code></td>
+<td>5.68 → 5.50 m RMSE; bias −0.64 → −0.24 m</td></tr>
+<tr><td><b>8K+ imagery exceeds GPU memory</b></td>
+<td>512² sliding-window tiling, Hann-blended seams, working grid capped at 8192 px</td>
+<td>Validated on a real 8K commercial satellite GeoTIFF</td></tr>
+<tr><td><b>Ground at 0 m breaks log losses</b></td>
+<td><code>log1p</code> reformulation with variance clamping</td>
+<td>Stable across all 30 epochs, no NaN</td></tr>
+<tr><td><b>Sensor resolution varies</b></td>
+<td>Normalise every input to the 0.33 m training GSD</td>
+<td>See stability table below</td></tr>
+<tr><td><b>Training data is 87% urban</b></td>
+<td>Added 2 800 Dutch AHN tiles sampled across forest, farmland and hills</td>
+<td>Forest 2.22 m and hills 3.27 m RMSE — both well under the urban figure</td></tr>
+</table>
+
+<div class="warn">
+<b>Say the limitation out loud; it reads as rigour.</b> Buildings and trees carry <b>94.5%</b> of all
+remaining error, and both are under-predicted (−6.7 m and −6.0 m bias). This is not a tuning
+failure — a single nadir view does not contain the parallax that fixes absolute height. We proved
+it: four independently trained models (different loss, different capacity, 2× the data) land within
+<b>0.35 m</b> of each other on any given site, while the spread <i>between</i> sites is <b>15.5 m</b>.
+The scene determines the error roughly 44× more than the model does.
+</div>
+
+<div class="fig"><img src="fig/error_split.png">
+<p class="cap">Figure 3 — Where the remaining error lives. Ground and low vegetation are already
+sub-metre; the work that remains is all in tall structures.</p></div>
+
+<div class="pagebreak"></div>
+<h2>7 · Slide 5 — Impact and Benefits</h2>
+
+<h3>Who benefits, and from what specifically</h3>
+<table>
+<tr><th style="width:26%">User</th><th style="width:37%">What they get</th><th>What it replaces</th></tr>
+<tr><td><b>Urban planning & infrastructure</b></td>
+<td>3D city context from archival or drone imagery; building heights, slope, line-of-sight</td>
+<td>A commissioned photogrammetry or LiDAR survey — weeks and a budget</td></tr>
+<tr><td><b>Disaster management</b></td>
+<td>Rapid post-flood or post-quake surface refresh; the flood tool cuts a water plane through the
+scene at any level and shows what submerges</td>
+<td>Waiting for a new LiDAR acquisition, which is exactly what is unavailable after a disaster</td></tr>
+<tr><td><b>Defence & reconnaissance</b></td>
+<td>Elevation over denied areas from one optical pass</td>
+<td>Stereo tasking or an overflight that may not be possible</td></tr>
+<tr><td><b>ISRO / SAC archives</b></td>
+<td>Decades of single-view imagery become a source of elevation, retrospectively</td>
+<td>Nothing — this data was never usable for height before</td></tr>
+</table>
+
+<h3>Quantified benefits — every number checkable in the repo</h3>
+<ul>
+<li><b>No new acquisition.</b> One photograph is the entire input.</li>
+<li><b>5.50 m RMSE / 3.17 m MAE</b> against airborne LiDAR on eight held-out landscapes; ground and
+low vegetation are accurate to <b>0.87 m and 0.95 m</b>.</li>
+<li><b>Seconds, not weeks.</b> 4.5 s per 400 m × 400 m site; scales to gigapixel orthomosaics by tiling.</li>
+<li><b>6.6 MB deployable head.</b> Edge-capable (e.g. Jetson AGX Orin); no cloud dependency.</li>
+<li><b>Runs on a laptop.</b> CPU-only path included; no GPU required to evaluate it.</li>
+<li><b>Verifiable, not just claimed.</b> Three demo scenes ship beside their LiDAR truth so a
+reviewer can compare our surface with the real measurement in the same viewer.</li>
+</ul>
+
+<div class="good"><b>The differentiator to lead with.</b> Most single-view height demos show a
+plausible-looking 3D render. We ship the render <i>and</i> the airborne-LiDAR measurement of the
+same ground, in the same viewer, on the same grid — and publish the error. That is an unusual
+thing to volunteer, and it is the most persuasive asset in the project.</div>
+
+<h3>Benefits — social, economic, environmental</h3>
+<p>The SIH template asks for these three explicitly. Keep one line each on the slide; the
+detail below is for questions.</p>
+<table>
+<tr><th style="width:16%">Category</th><th style="width:40%">Slide line</th><th>Backing</th></tr>
+<tr><td><b>Social</b></td>
+<td>Elevation data for regions no survey has reached — disaster response that does not wait for a LiDAR flight</td>
+<td>After a flood or quake, existing elevation is stale precisely when it matters. One optical pass, which agencies already receive, becomes a surface model in seconds. The flood tool cuts a water plane at any level and shows what submerges.</td></tr>
+<tr><td><b>Economic</b></td>
+<td>Removes a survey line-item: no stereo tasking, no LiDAR flight, no InSAR pass</td>
+<td>Airborne LiDAR over a city is a commissioned campaign costing weeks and a budget. This runs on a laptop in seconds from imagery already held. It also makes <b>decades of archived single-view imagery</b> newly useful for height — an asset with sunk cost and no current elevation value.</td></tr>
+<tr><td><b>Environmental</b></td>
+<td>No survey aircraft flown; forest canopy height from imagery already collected</td>
+<td>Every avoided LiDAR sortie is avoided aviation fuel. Canopy height supports biomass and deforestation monitoring: our forest site scores <b>2.22 m RMSE</b> against 4.25 m for assuming flat ground.</td></tr>
+</table>
+
+<div class="slide"><b>Honesty note for the presenter.</b> Do not claim this replaces LiDAR for
+survey-grade work — it does not, and a SAC judge will know. The defensible claim is that it
+<i>fills the gap where LiDAR is absent, stale, or impossible</i>, which is most of the world most of
+the time. That framing is stronger because it is true.</div>
+
+<h3>Deployment and system architecture</h3>
+<div class="fig"><img src="fig/system.png">
+<p class="cap">Figure 4 — How the product is put together. Useful on the Technical Approach slide
+if there is room, or held back for the "is this deployable?" question.</p></div>
+
+<div class="pagebreak"></div>
+<h2>8 · Slide 6 — Research and References</h2>
+<table>
+<tr><th style="width:24%">Component</th><th style="width:40%">What it is</th><th>Licence</th></tr>
+<tr><td><b>Depth Anything V2 Base</b></td><td>Frozen monocular relative-depth backbone, 97.5 M params, DINOv2 ViT-B encoder</td><td><b>CC-BY-NC-4.0</b> — non-commercial</td></tr>
+<tr><td>Depth Anything V3 Mono Large</td><td>Selectable alternative backbone, measured equivalent (median r 0.58 vs 0.56)</td><td>Apache-2.0 — permissive</td></tr>
+<tr><td><b>GAMUS</b></td><td>Global Aerial Multi-Sensor Urban dataset; 5 004 training tiles used</td><td>CC-BY-4.0 — attribution</td></tr>
+<tr><td><b>AHN4</b> via PDOK</td><td>Dutch national airborne LiDAR, flown 2020–2022; 2 800 training tiles + the 8-site benchmark</td><td>Dutch open government data</td></tr>
+<tr><td>PDOK aerial orthophotos</td><td>0.25 m national imagery, 2023 layer</td><td>Dutch open government data</td></tr>
+<tr><td><b>Copernicus GLO-30</b></td><td>30 m global DEM, auto-fetched as the terrain datum</td><td>Free; ESA/Copernicus attribution</td></tr>
+<tr><td>CartoDEM (ISRO/NRSC)</td><td>Optional Indian terrain datum via Bhoonidhi</td><td>Per Bhoonidhi terms</td></tr>
+<tr><td>Ultralytics YOLOv8n-OBB</td><td>Optional vehicle ground prior; degrades gracefully if absent</td><td><b>AGPL-3.0</b> — strong copyleft</td></tr>
+</table>
+
+<h4>Core techniques to cite</h4>
+<ul>
+<li>Scale-Invariant Log (SILog) loss — Eigen et al., depth estimation</li>
+<li>DPT feature-pyramid decoding — Ranftl et al., dense prediction transformers</li>
+<li>Multi-scale gradient matching — edge preservation in depth regression</li>
+<li>Felzenszwalb segmentation for object-based roof regularisation</li>
+<li>Validation: RMSE / MAE / Pearson r / δ-threshold against LiDAR-derived reference elevation</li>
+</ul>
+
+<h4>Source</h4>
+<p><code>github.com/Aryan241/Heimdall</code> — keep the QR code from the old deck; the URL is unchanged.</p>
+
+<div class="warn"><b>Two licence facts to be ready for, not to hide.</b> The default backbone is
+<b>non-commercial</b> (CC-BY-NC-4.0) and the optional vehicle detector is <b>AGPL-3.0</b>. Neither
+constrains a competition entry or an internal ISRO evaluation. For an operational deployment we
+have a measured escape route: <b>DA3 Mono Large is Apache-2.0 and statistically indistinguishable</b>
+in our comparison, at roughly 3× the inference cost and one retraining of the head. Having that
+answer ready is better than being asked and not having it.</div>
+
+<div class="pagebreak"></div><h2>9 · Appendix A — Full measured results</h2>
+<h3>Eight held-out LiDAR sites (0.25 m imagery, shipped model)</h3><table>
+<tr><th>Site</th><th>Landscape</th><th>RMSE</th><th>MAE</th><th>Bias</th><th>r</th><th>Predict-zero RMSE</th></tr>
+<tr><td><code>amsterdam_centre</code></td><td>dense historic urban</td><td><b>8.20 m</b></td><td>5.55 m</td><td>-5.04 m</td><td>0.86</td><td>13.32 m</td></tr>
+<tr><td><code>rotterdam_centre</code></td><td>high-rise urban</td><td><b>16.69 m</b></td><td>8.75 m</td><td>-6.18 m</td><td>0.60</td><td>22.92 m</td></tr>
+<tr><td><code>utrecht_suburb</code></td><td>suburban residential</td><td><b>2.29 m</b></td><td>1.44 m</td><td>-0.50 m</td><td>0.79</td><td>4.75 m</td></tr>
+<tr><td><code>rotterdam_port</code></td><td>industrial</td><td><b>7.37 m</b></td><td>4.66 m</td><td>-4.15 m</td><td>0.84</td><td>11.01 m</td></tr>
+<tr><td><code>westland_greenhouses</code></td><td>greenhouses</td><td><b>2.38 m</b></td><td>1.77 m</td><td>-0.22 m</td><td>0.58</td><td>3.90 m</td></tr>
+<tr><td><code>veluwe_forest</code></td><td>forest</td><td><b>2.22 m</b></td><td>1.12 m</td><td>-0.12 m</td><td>0.79</td><td>4.25 m</td></tr>
+<tr><td><code>flevoland_farmland</code></td><td>sparse rural</td><td><b>1.59 m</b></td><td>0.28 m</td><td>+0.08 m</td><td>0.07</td><td>1.43 m</td></tr>
+<tr><td><code>valkenburg_hills</code></td><td>hilly town</td><td><b>3.27 m</b></td><td>1.81 m</td><td>-0.64 m</td><td>0.70</td><td>5.38 m</td></tr>
+<tr style='background:#e8eef7'><td colspan=2><b>mean</b></td><td><b>5.50 m</b></td><td><b>3.17 m</b></td><td>—</td><td><b>0.656</b></td><td><b>8.37 m</b></td></tr></table>
+<h3>By surface type (mean over the eight sites)</h3><table><tr><th>Surface</th><th>MAE</th><th>RMSE</th><th>Bias</th><th>Share of total squared error</th></tr>
+<tr><td>ground</td><td><b>0.87 m</b></td><td>1.70 m</td><td>+0.70 m</td><td>3.9%</td></tr>
+<tr><td>low vegetation</td><td><b>0.95 m</b></td><td>1.64 m</td><td>+0.70 m</td><td>1.7%</td></tr>
+<tr><td>tree</td><td><b>6.60 m</b></td><td>9.26 m</td><td>-5.95 m</td><td>44.5%</td></tr>
+<tr><td>building</td><td><b>7.08 m</b></td><td>9.35 m</td><td>-6.67 m</td><td>50.0%</td></tr>
+</table><p style='font-size:8.4pt;color:#666'>Ground and low vegetation — the majority of pixels in any image — are sub-metre. Buildings and trees are under-predicted and carry 94.5% of the remaining error.</p>
+<div class="pagebreak"></div>
+<h2>10 · Appendix B — What we tried, and what it taught us</h2>
+<p>Three controlled experiments were run on identical settings, each changing exactly one thing.
+The ship rule was fixed <i>before</i> any of them ran, so a marginal result could not be argued into
+a win afterwards.</p>
+<table>
+<tr><th style="width:12%">Run</th><th style="width:30%">The one change</th><th style="width:14%">RMSE</th><th>Outcome</th></tr>
+<tr><td>baseline</td><td>—</td><td>5.68 m</td><td>previous shipped model</td></tr>
+<tr style="background:#eef7ee"><td><b>E1</b></td><td><b>Height-weighted loss</b></td><td><b>5.50 m</b></td>
+<td><b>Shipped.</b> The only change that improved the graded metrics.</td></tr>
+<tr><td>E2</td><td>Unfroze the last 4 transformer blocks (+28 M trainable)</td><td>5.69 m</td>
+<td>No effect — and would have grown the shipped artefact from 6.6 MB to ~390 MB.</td></tr>
+<tr><td>E3</td><td>2.05× the training data</td><td>5.75 m</td>
+<td>No gain on RMSE — but the <b>best median error (0.361 m vs 0.468 m) and best ground accuracy</b>
+of all four models. More data improved typical accuracy, not outliers.</td></tr>
+</table>
+
+<div class="good"><b>The finding worth presenting.</b> We changed the objective, the capacity and the
+data volume — and <b>only the objective mattered</b>. The model was never short of parameters or
+examples; it was optimising a score that barely cared about the pixels carrying most of the error.
+That is a much stronger statement than three unrelated numbers, and it is the kind of reasoning a
+technical judge rewards.</div>
+
+<h3>Hypotheses we tested and rejected</h3>
+<ul>
+<li><b>Overfitting.</b> Ruled out: validation error was still falling at the last epoch, more data is
+the remedy rather than the cause, and a 1.72 M head against 16 004 tiles is nowhere near a
+capacity-limited regime.</li>
+<li><b>Stale training labels.</b> The LiDAR is 2020–2022 and the imagery 2023, which looked like a
+clean explanation for an accuracy floor. We re-ran three sites with epoch-matched 2022 imagery:
+<b>two of three got worse</b>. Rejected.</li>
+<li><b>A capacity ceiling.</b> Trained the head on just 24 tiles seen 60 times; it plateaued at
+1.38 m and could not reach zero. Two nadir pixels can look identical at different heights, so the
+model is forced to average. The limit is information in the image, not model size.</li>
+</ul>
+
+<h2>11 · Appendix C — Known limitations (state these before you are asked)</h2>
+<ul>
+<li><b>Tall structures are under-predicted</b> — building bias −6.7 m, tree bias −6.0 m. A single
+nadir view lacks the parallax that fixes absolute height.</li>
+<li><b>Dense high-rise is the hardest case</b> — Rotterdam centre 16.69 m RMSE, against 22.92 m for
+predicting nothing. We help, but the canyon geometry is genuinely ambiguous from above.</li>
+<li><b>Flat farmland is the one place we can lose to doing nothing</b> — 1.59 m vs 1.43 m for
+predict-zero. Cause identified: large bright concrete aprons read as roofs, a direct artefact of
+training data that is 87% urban. Three blobs account for 23% of that site's error.</li>
+<li><b>Benchmarked on Dutch terrain.</b> AHN is the best open LiDAR available to us, but the
+Netherlands is flat and Northern-European. Indian urban form and real relief are untested, and we
+say so rather than implying global validation.</li>
+<li><b>No error bar yet on 5.50 m.</b> Run-to-run spread between four models was 0.35 m, so the
+0.18 m gain over the baseline is real but modest. A seed-repeat is running.</li>
+</ul>
+
+<h2>12 · Appendix D — Likely questions, with answers</h2>
+<table>
+<tr><th style="width:38%">Question</th><th>Answer</th></tr>
+<tr><td><i>"How can one image give height? Isn't that impossible?"</i></td>
+<td>The absolute scale is not in the image — it is learned. The backbone gives relative ordering
+("this is higher"); the head converts that to metres using patterns learned from 7 804
+LiDAR-measured tiles: shadow length, texture gradient, apparent size, context. Where the image is
+genuinely ambiguous, we under-predict, and we publish that bias.</td></tr>
+<tr><td><i>"Why not a metric depth model that outputs metres directly?"</i></td>
+<td>We tried. Metric models assume a perspective camera; an orthomosaic has none. Correlation with
+true height was 0.06 — effectively zero. Relative depth survives the projection change at 0.41.</td></tr>
+<tr><td><i>"5.50 m sounds large."</i></td>
+<td>It is dominated by tall structures. Ground and low vegetation — most of any image — are
+sub-metre (0.87 m and 0.95 m). The alternative of predicting nothing scores 8.37 m. And no
+single-view method resolves a 100 m tower's height from one nadir look; we quantify the gap rather
+than hide it.</td></tr>
+<tr><td><i>"Have you tested on ISRO imagery?"</i></td>
+<td>Not yet — we have no ISRO LiDAR ground truth to score against. What we <i>have</i> tested is
+resolution robustness: performance is flat from 0.25 m to 1 m and degrades gracefully at 2 m, which
+spans the Cartosat range. The pipeline reads any georeferenced GeoTIFF.</td></tr>
+<tr><td><i>"What happens with no GPU?"</i></td>
+<td>It runs on CPU. <code>run.sh</code> detects hardware and installs the right PyTorch build.</td></tr>
+<tr><td><i>"Is this reproducible?"</i></td>
+<td>Every number in this pack comes from a JSON file in the repository, and a script
+(<code>check_report_numbers.py</code>) verifies the documentation against those files and fails if
+any figure drifts.</td></tr>
+</table>
+
+<div class="pagebreak"></div>
+<h2>13 · Shippability against the stated evaluation criteria</h2>
+<p>The problem statement grades two halves. Below is an honest position on each, with the evidence
+we can produce on demand.</p>
+
+<h3>Half 1 — DSM accuracy (50%)</h3>
+<table>
+<tr><th style="width:30%">Graded on</th><th style="width:14%">Status</th><th>Evidence / gap</th></tr>
+<tr><td>RMSE vs LiDAR</td><td><b>Ready</b></td><td>5.50 m over eight held-out sites; 8.37 m for predict-zero. Reproduced independently on a second machine.</td></tr>
+<tr><td>MAE vs LiDAR</td><td><b>Ready</b></td><td>3.17 m mean; 0.87 m on ground, 0.95 m on low vegetation.</td></tr>
+<tr><td>Correlation</td><td><b>Ready</b></td><td>0.656 mean; 0.86 on dense urban, 0.79 on forest.</td></tr>
+<tr><td>Stability across urban / sparse / hilly / forested</td><td><b>Ready</b></td>
+<td>All four landscapes measured separately: urban 9.06 m, hilly 3.27 m, forested 2.22 m, sparse 1.59 m. This is the criterion most entries will not have measured at all.</td></tr>
+<tr><td>Behaviour on ISRO imagery</td><td><b>Untested</b></td>
+<td>No ISRO LiDAR truth available to score against. Mitigated by the resolution sweep (flat 0.25 → 1 m), which spans the Cartosat range. <b>Be upfront about this.</b></td></tr>
+</table>
+
+<h3>Half 2 — Rendering and UX (50%)</h3>
+<table>
+<tr><th style="width:30%">Graded on</th><th style="width:14%">Status</th><th>Evidence / gap</th></tr>
+<tr><td>Projection accuracy</td><td><b>Ready</b></td><td>Mesh in true metres, no vertical exaggeration; measurement tool verified against scene extent; CRS units handled correctly including feet-based systems.</td></tr>
+<tr><td>Visual fidelity</td><td><b>Ready</b></td><td>Full-resolution optical texture draped as UV, not per-vertex colour; flat shading preserved so roofs read as roofs.</td></tr>
+<tr><td>Flythrough navigability</td><td><b>Ready</b></td><td>Orbit + free-fly; compass, measurement, elevation profile, flood-level tool.</td></tr>
+<tr><td>Interface</td><td><b>Ready</b></td><td>Upload → job → viewer, with an Accuracy tab exposing the benchmark rather than hiding it.</td></tr>
+<tr><td>Stability</td><td><b>Ready</b></td><td>36 automated tests; concurrency slot-leak fixed and proven; degenerate inputs raise instead of emitting broken files.</td></tr>
+<tr><td>Standalone deployment</td><td><b>Ready</b></td><td><code>./run.sh</code> on a clean machine; CPU fallback; 6.6 MB head; static demo deployed publicly.</td></tr>
+</table>
+
+<div class="good"><b>Overall: shippable today.</b> Both halves are in a defensible state, the accuracy
+claims are reproducible from files in the repository, and the demo ships with ground truth beside
+it. The three ablations still running can only improve the accuracy half — nothing is blocked on
+them, and the current model is committed, benchmarked and deployed.</div>
+
+<div class="warn"><b>The two things to decide before submitting.</b> (1) Whether to state the
+non-commercial backbone licence on the References slide — we recommend yes, with the Apache-2.0
+alternative named in the same breath. (2) Whether to mention that ISRO imagery is untested — we
+recommend yes, paired with the resolution-robustness result, because a judge from SAC will ask and
+a prepared answer is worth more than an unprompted claim.</div>
+
+<div class='pagebreak'></div><h2>14 · Appendix E — Resolution robustness</h2>
+<p>The same shipped model, run on the same eight sites, with the imagery degraded to coarser sensor resolutions by area averaging. This is the strongest available answer to <i>'will it work on our satellite data?'</i></p>
+<div class='fig'><img src='fig/gsd.png'><p class='cap'>Figure 5 — Accuracy against input resolution. Flat from 0.25 m to 1 m; graceful, not catastrophic, at 2 m.</p></div>
+<table><tr><th>Input GSD</th><th>Mean RMSE</th><th>Change vs 0.25 m</th><th>Comparable sensor</th></tr>
+<tr><td>0.25 m</td><td><b>5.52 m</b></td><td>+0.00 m</td><td>aerial / drone orthophoto</td></tr>
+<tr><td>0.5 m</td><td><b>5.61 m</b></td><td>+0.09 m</td><td>WorldView-class panchromatic</td></tr>
+<tr><td>1 m</td><td><b>5.83 m</b></td><td>+0.30 m</td><td>Cartosat-2 / high-res commercial</td></tr>
+<tr><td>2 m</td><td><b>6.42 m</b></td><td>+0.89 m</td><td>Cartosat-1 / Sentinel-2 upsampled</td></tr>
+</table><p style='font-size:8.4pt;color:#666'>Achieved by normalising every input to the 0.33 m training GSD before inference, so the model always sees features at the scale it was trained on. Upsampling is capped at 3× so we never invent detail that is not there.</p>
+<div class="meta">
+Generated 29 September 2026 from the shipped checkpoint <code>decoder_best.pth</code> (Depth Anything
+V2 Base + multi-scale DPT head, epoch 28). Every accuracy figure in this document is read from
+<code>outputs/benchmark_ahn/results.json</code> in the repository and can be regenerated with
+<code>python scripts/benchmark_ahn.py</code>. Resolution figures from a dedicated sweep of the same
+model. Repository: github.com/Aryan241/Heimdall
+</div></body></html>
