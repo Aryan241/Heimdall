@@ -122,6 +122,18 @@ metric:</p>
 <p>On identical data the current model is <b>1.94 m more accurate and correlates nearly twice as
 well</b> with real height. The redesign was a substantial win — it only looks like a regression if
 you compare a held-out number against an in-domain one.</p>
+<p><b>The same holds on GAMUS itself</b>, which matters because GAMUS is the dataset the older work
+used. Both checkpoints scored on the same 120-tile sample of the held-out GAMUS test split:</p>
+<table>
+<tr><th style="width:44%">Model, on identical GAMUS test tiles</th><th>RMSE</th><th>MAE</th><th>Correlation</th></tr>
+<tr><td>DA3 Metric-L + affine <span style="color:#777">(old)</span></td><td>8.00 m</td><td>3.85 m</td><td>0.338</td></tr>
+<tr style="background:#eef7ee"><td><b>DA2 Base + multiscale</b> <span style="color:#777">(current)</span></td><td><b>4.84 m</b></td><td><b>2.19 m</b></td><td><b>0.814</b></td></tr>
+<tr><td>predict zero height</td><td>9.13 m</td><td>4.38 m</td><td>—</td></tr>
+</table>
+<p><b>Two independent datasets agree.</b> The older architecture's correlation with real height sits
+at 0.34–0.38 on both held-out sets; ours sits at 0.66–0.81. And note the old model scores 8.00 m
+against 9.13 m for predicting nothing — on unseen GAMUS data it is barely better than a flat guess,
+which is the clearest possible evidence that 2.18 m was measuring fit to its own training tiles.</p>
 <p>Why 2.18 m had no unseen data to use: the legacy training log records <b>262 batches per epoch
 over a 524-tile dataset</b> — a batch size of 2, so all 524 tiles passed through training every
 epoch — and the report never mentions a held-out split. The figure therefore measures how closely
@@ -544,6 +556,13 @@ any figure drifts.</td></tr>
 </table>
 
 <div class="pagebreak"></div>
+<h3>A second dataset, for completeness</h3>
+<p>The architecture comparison above was repeated on the GAMUS test split
+(<code>outputs/gamus_architecture_comparison.json</code>): current 4.84 m / r 0.814 against the old
+architecture's 8.00 m / r 0.338, on the same 120 tiles. The shipped model also scores <b>5.42 m /
+r 0.751</b> on a 500-tile GAMUS test sample against 8.67 m for predict-zero
+(<code>outputs/gamus_test.json</code>).</p>
+
 <h2>13 · Shippability against the stated evaluation criteria</h2>
 <p>The problem statement grades two halves. Below is an honest position on each, with the evidence
 we can produce on demand.</p>
