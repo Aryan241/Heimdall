@@ -220,9 +220,39 @@ and produced three plausible, meaningless results.
 
 Filled in as runs complete. A run ships only if it meets the criterion stated above.
 
-| Run | Change | AHN 8-site RMSE | r | Sub-metre classes | Inference cost | Shipped |
-|---|---|---|---|---|---|---|
-| baseline | frozen DA2-B + multiscale head | **5.68 m** | 0.662 | ground 0.80 / road 0.86 / low-veg 0.75 m MAE | 1.3 s/tile, 6.6 MB | current |
-| E1 | height-weighted loss | pending | | | | |
-| E2 | unfrozen last blocks | pending | | | | |
-| E3 | +10 k AHN tiles | pending | | | | |
+| Run | Change | AHN 8-site RMSE | mean r | Best val RMSE | Shipped |
+|---|---|---|---|---|---|
+| baseline | frozen DA2-B + multiscale head | **5.68 m** | 0.662 | 3.850 m | **current** |
+| E1 | height-weighted loss | running | | | |
+| **E2** | **unfrozen last 4 blocks** | **5.68 m** | **0.674** | 3.866 m | **no** |
+| E3 | 4× AHN tiles | running | | | |
+
+### E2 — unfreezing the backbone: no effect
+
+Thirty epochs with the last four transformer blocks trainable at a tenth of the head's learning
+rate, on a Kaggle T4 with mixed precision — the experiment as designed, not the version the
+dying 1080 would have given us. 417 s per epoch, so the extra 28 M parameters receiving
+gradients cost far less time than expected.
+
+The result is a tie. Mean RMSE over the eight held-out sites is unchanged at 5.68 m, MAE is
+0.01 m worse, best validation RMSE is 0.016 m worse. Correlation improves slightly, 0.662 to
+0.674, which says the fine-tuned features track the shape of the terrain marginally better
+without being any closer in absolute metres.
+
+**It does not ship.** The criterion was to beat the baseline, and a tie is not a win — least of
+all for the one experiment that would grow the shipped checkpoint from 6.6 MB to about 390 MB.
+
+**What it tells us, which is the more useful part.** The hypothesis was that the frozen
+backbone is the ceiling: trained on eye-level photographs, it correlates only 0.41 with real
+height in nadir views, and the head can only work with what it is handed. Adapting those
+features to nadir geometry should therefore have raised the ceiling.
+
+It did not. Four blocks and thirty epochs of fine-tuning moved the benchmark by nothing. Either
+the frozen features already carry the information the head needs, and the limit lies elsewhere,
+or the adaptation needs far more data than 7 804 tiles to take hold. The first reading is the
+more useful one and matches the other evidence: what limits us is buildings and trees, where a
+single nadir view genuinely lacks the parallax to resolve absolute height — not the backbone's
+representation.
+
+That makes E1's premise — that the *loss* under-weights tall structures — the better bet, and
+it is the experiment still running.
