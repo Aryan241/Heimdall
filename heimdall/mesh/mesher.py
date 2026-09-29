@@ -38,14 +38,28 @@ class MeshInfo:
 
 
 def _grid(heightmap: np.ndarray, max_grid_side: int) -> np.ndarray:
+    """Downsample to the mesh grid, averaging only the valid pixels of each cell.
+
+    Returns NaN for cells with no valid pixel at all; the caller masks those out.
+    """
     h, w = heightmap.shape
     s = min(1.0, max_grid_side / max(h, w))
     gh, gw = max(2, int(round(h * s))), max(2, int(round(w * s)))
     if (gh, gw) == (h, w):
         return heightmap.astype(np.float32)
     # Box-filtered downsample (BOX) keeps mean heights instead of aliasing roof edges.
-    img = Image.fromarray(np.nan_to_num(heightmap, nan=float(np.nanmin(heightmap))).astype(np.float32))
-    return np.asarray(img.resize((gw, gh), Image.Resampling.BOX if s < 1 else Image.Resampling.BILINEAR))
+    resample = Image.Resampling.BOX if s < 1 else Image.Resampling.BILINEAR
+    valid = np.isfinite(heightmap)
+    if valid.all():
+        return np.asarray(Image.fromarray(heightmap.astype(np.float32)).resize((gw, gh), resample))
+    # Filling nodata with a constant and box-averaging drags every partly-empty cell towards
+    # that constant: a cell 3/8 nodata on a 60 m roof came out at 37.5 m, a 22 m sag along
+    # every nodata border. Averaging height and validity separately and dividing gives the
+    # mean over the valid pixels alone, which is the height that is actually known there.
+    num = np.asarray(Image.fromarray(np.where(valid, heightmap, 0.0).astype(np.float32))
+                     .resize((gw, gh), resample))
+    den = np.asarray(Image.fromarray(valid.astype(np.float32)).resize((gw, gh), resample))
+    return np.divide(num, den, out=np.full_like(num, np.nan), where=den > 1e-6)
 
 
 def build_textured_mesh(
@@ -67,10 +81,14 @@ def build_textured_mesh(
         m = Image.fromarray((~np.isfinite(heightmap)).astype(np.uint8) * 255)
         nodata_grid = np.asarray(m.resize((gc, gr), Image.Resampling.BOX)) > 127
     width_m, depth_m = cols_px * gsd_m, rows_px * gsd_m
+    if not np.isfinite(heightmap).any():
+        raise ValueError("heightmap has no valid pixels — nothing to mesh")
     if height_offset is None:
         height_offset = float(np.nanpercentile(heightmap, 1))
     if nodata_grid is not None:
         grid = np.where(nodata_grid, height_offset, grid)
+    # A cell can be empty without being flagged if it rounds under the mask threshold.
+    grid = np.where(np.isfinite(grid), grid, height_offset)
 
     u = np.linspace(0.0, 1.0, gc, dtype=np.float32)
     v = np.linspace(0.0, 1.0, gr, dtype=np.float32)
@@ -92,6 +110,8 @@ def build_textured_mesh(
         # Drop triangles touching nodata so image borders don't render as flat skirts.
         bad = nodata_grid.ravel()
         faces = faces[~(bad[faces[:, 0]] | bad[faces[:, 1]] | bad[faces[:, 2]])]
+        if len(faces) == 0:
+            raise ValueError("every mesh face touches nodata — nothing left to render")
 
     tex = Image.open(texture_path)  # opened from JPEG → trimesh embeds it without re-encoding
     material = trimesh.visual.material.PBRMaterial(

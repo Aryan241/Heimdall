@@ -1,5 +1,4 @@
 """
-import pytest
 End-to-end robustness tests over awkward but realistic inputs.
 
 These run the *whole* pipeline (backbone-only mode, so they need the Depth Anything V2
