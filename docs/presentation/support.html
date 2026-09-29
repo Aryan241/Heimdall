@@ -158,11 +158,12 @@ volunteers the distinction.</div>
 <h2>3 · Slide 1 — Title page</h2>
 <table>
 <tr><th style="width:32%">Field</th><th>Value</th></tr>
-<tr><td>Problem Statement ID</td><td><b>26175</b></td></tr>
+<tr><td>Problem Statement ID</td><td><b>SIH26175</b> (listed as PS Number; S.No. 175)</td></tr>
 <tr><td>Problem Statement Title</td><td>DepthWizard — Single-View Height Estimation and 3D Flythrough</td></tr>
 <tr><td>Organisation</td><td>ISRO — Space Applications Centre (SAC), Image Processing Division</td></tr>
 <tr><td>PS Category</td><td>Software</td></tr>
-<tr><td>Theme</td><td>Space Technology <span style="color:#777">(confirm the exact wording on the portal)</span></td></tr>
+<tr><td>Idea submission deadline</td><td>30 September 2026</td></tr>
+<tr><td>Theme</td><td><b>Disaster Management</b> <span style="color:#777">(as listed on sih.gov.in)</span></td></tr>
 <tr><td>Team ID / Team Name</td><td><span style="color:#777">from the portal</span></td></tr>
 </table>
 
@@ -284,6 +285,22 @@ looking like roofs instead of hills in the 3D view.</li>
 under-prediction bias from −0.64 m to −0.24 m.</li>
 </ul>
 
+<h3>Our approach is the one the problem statement itself suggests</h3>
+<p>The portal entry for PS 26175 says, in its own dataset note:</p>
+<p style="margin-left:5mm;border-left:3px solid #c9d4e4;padding-left:3mm;font-style:italic">
+"A lower-resolution DEM source such as SRTM 30 m may be used to map scale-agnostic depth features
+to absolute metric elevations."</p>
+<p>That is exactly our architecture, described by the people who set the problem: <b>scale-agnostic
+relative depth, anchored to absolute elevation by a coarse DEM.</b> We use <b>Copernicus GLO-30</b>
+rather than SRTM 30 m — the same 30 m resolution class, with better vertical accuracy and global
+coverage — and it is fetched automatically, so the user supplies nothing but an image.</p>
+<p><b>Worth stating on the slide.</b> It shows we read the problem statement properly rather than
+arriving with a generic depth model, and it pre-empts "why not predict metres directly?" — the PS
+authors evidently expect the two-stage approach too.</p>
+<p>The portal also names a reference dataset, <code>github.com/IMG-PROCESS-SAC/SIH2026/</code>, and
+permits any openly available high-resolution remote-sensing data for development — which is what
+our GAMUS and AHN training sets are.</p>
+
 <h3>Engineering details worth one line each on the slide</h3>
 <ul>
 <li>512² sliding-window tiling, Hann-blended seams — handles 8K+ imagery on ordinary GPUs.</li>
@@ -359,16 +376,20 @@ sub-metre; the work that remains is all in tall structures.</p></div>
 <div class="pagebreak"></div>
 <h2>7 · Slide 5 — Impact and Benefits</h2>
 
+<div class="warn"><b>Frame this slide around disaster management.</b> The portal lists PS 26175
+under the <b>Disaster Management</b> theme, not Space Technology. Whoever set the problem is
+thinking about floods and earthquakes, so lead with that and treat the rest as secondary. The
+audience order below reflects that; the old deck's ordering did not.</div>
 <h3>Who benefits, and from what specifically</h3>
 <table>
 <tr><th style="width:26%">User</th><th style="width:37%">What they get</th><th>What it replaces</th></tr>
-<tr><td><b>Urban planning & infrastructure</b></td>
-<td>3D city context from archival or drone imagery; building heights, slope, line-of-sight</td>
-<td>A commissioned photogrammetry or LiDAR survey — weeks and a budget</td></tr>
 <tr><td><b>Disaster management</b></td>
 <td>Rapid post-flood or post-quake surface refresh; the flood tool cuts a water plane through the
 scene at any level and shows what submerges</td>
 <td>Waiting for a new LiDAR acquisition, which is exactly what is unavailable after a disaster</td></tr>
+<tr><td><b>Urban planning & infrastructure</b></td>
+<td>3D city context from archival or drone imagery; building heights, slope, line-of-sight</td>
+<td>A commissioned photogrammetry or LiDAR survey — weeks and a budget</td></tr>
 <tr><td><b>Defence & reconnaissance</b></td>
 <td>Elevation over denied areas from one optical pass</td>
 <td>Stereo tasking or an overflight that may not be possible</td></tr>
