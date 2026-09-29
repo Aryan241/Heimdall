@@ -225,7 +225,7 @@ Filled in as runs complete. A run ships only if it meets the criterion stated ab
 | baseline | frozen DA2-B + multiscale head | **5.68 m** | 0.662 | 3.850 m | **current** |
 | **E1** | **height-weighted loss** | **5.50 m** | 0.656 | **3.809 m** | **candidate** |
 | **E2** | **unfrozen last 4 blocks** | **5.68 m** | **0.674** | 3.866 m | **no** |
-| E3 | 4× AHN tiles | running | | | |
+| E3 | 4× AHN tiles | 5.75 m | 0.663 | 3.871 m* | **no** |
 
 ### E2 — unfreezing the backbone: no effect
 
@@ -288,3 +288,65 @@ accurate. The Kaggle cells ran `benchmark_ahn.py` but not `eval.py` on the GAMUS
 the per-class figures the second half of the criterion needs do not exist yet. Until they do,
 E1 is a **candidate, not a decision**: `scripts/compare_checkpoint.py` will apply both halves of
 the rule mechanically once the checkpoint is in hand.
+
+### E3 — four times the AHN data: slightly worse
+
+8 000 AHN tiles at 0.3 m and 3 000 at 1 m, against the baseline's 2 000 and 800. With GAMUS
+unchanged that is 16 004 training tiles per epoch against 7 804, and epoch time rose in exact
+proportion — 830 s against 404 s, a factor of 2.05 for 2.05× the data. Nothing was silently
+truncated; the run really did see all of it.
+
+| | baseline | E3 | change |
+|---|---|---|---|
+| AHN 8-site mean RMSE | 5.68 m | 5.75 m | **+0.07 m worse** |
+| AHN 8-site mean MAE | 3.26 m | 3.31 m | +0.05 m worse |
+| mean correlation | 0.662 | 0.663 | +0.001 |
+
+\* E3's best validation RMSE of 3.871 m is **not comparable** to E1's 3.809 m or E2's 3.866 m.
+All three cap validation at 200 tiles, but E3 draws them from a different AHN validation pool
+(400 + 150 tiles rather than 200 + 80), so it is a different measurement, not a worse score on
+the same one. Only the eight-site LiDAR benchmark is common to all four runs, and that is what
+the table above and the ship criterion use.
+
+**It does not ship** — it is worse, not merely tied.
+
+**What it tells us.** The hypothesis was the safest of the three: more of the data that already
+worked, sampled across the landscape types the PS grades, to compensate for GAMUS being 87%
+urban. Doubling the training set moved the benchmark backwards by 0.07 m.
+
+The most likely reading is that the extra tiles were more of the same. `build_ahn_dataset.py`
+samples the Netherlands, and the Netherlands is flat, Northern-European and largely built or
+farmed. Going from 2 800 to 11 000 Dutch tiles adds volume but little that is new, while
+shifting the training mixture further towards Dutch imagery and away from GAMUS. The slight
+regression is what a mixture shift towards an over-represented domain looks like.
+
+This matters for the evaluation data specifically. If more Dutch tiles do not help, the gap that
+remains is not a shortage of examples — it is a shortage of *variety*, and in particular of the
+terrain the PS names that neither GAMUS nor AHN contains: hills, and Indian urban form. More of
+either existing source will not close it.
+
+---
+
+## Conclusions
+
+| Run | What it changed | 8-site RMSE | Verdict |
+|---|---|---|---|
+| baseline | — | 5.68 m | |
+| **E1** | **the loss function** | **5.50 m** | **the only gain** |
+| E2 | model capacity (unfroze 4 blocks) | 5.68 m | no effect |
+| E3 | training data volume (2.05×) | 5.75 m | slightly worse |
+
+The three experiments changed three different things — the objective, the capacity, the data —
+and only the objective mattered. Neither letting the backbone adapt nor doubling the training
+set moved the benchmark at all, while re-weighting the loss towards tall structures moved it
+0.18 m in one run costing no extra time.
+
+That is a coherent finding rather than three isolated results. The model was not short of
+capacity or short of examples; it was optimising a score that barely cared about the pixels
+carrying most of the error. `log1p` compressed a 60 m building error to roughly three times the
+penalty of a 0.5 m kerb error, so the head was behaving correctly for the objective it was
+given, and the −2.47 m building bias was the honest consequence.
+
+The practical reading for anything done after this: further gains are more likely to come from
+what the model is asked to optimise, or from data of a *kind* it has never seen, than from
+more parameters or more of the same tiles.
