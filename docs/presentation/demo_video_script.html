@@ -35,6 +35,7 @@ A 5–6 minute screen recording of the local prototype, narrated live. Green box
 <tr><td><b>Pre-run one job and leave it in Recent jobs</b></td><td>Insurance. If the live run is slow you can cut to a finished one without dead air.</td></tr>
 <tr><td>Have <code>Heimdall_test_samples/AHN/utrecht_suburb__UPLOAD_THIS.tif</code> ready</td><td>This is the file you drag in on camera.</td></tr>
 <tr><td>Browser at 100% zoom, full screen, close other tabs</td><td>The 3D view needs the space and a clean frame reads as professional.</td></tr>
+<tr><td><b>Leave the GSD override empty</b></td><td>It only applies to images with no coordinate system. A leftover value overrides a GeoTIFF's own scale and raises a warning banner mid-take.</td></tr>
 <tr><td>Click into a scene once and orbit, then reload</td><td>Warms the WebGL context so the first render is not janky on camera.</td></tr>
 <tr><td>Silence notifications</td><td>An ntfy popup mid-take costs you a re-record.</td></tr>
 </table>
@@ -49,7 +50,7 @@ video and checks, it holds up — that is the impression you want.</div>
 <tr><td>0:35–1:20</td><td>Upload a real image, start it</td><td>Drag the GeoTIFF in, press Process image</td></tr>
 <tr><td>1:20–2:20</td><td>How it works, while it runs</td><td>Live progress log and stage list</td></tr>
 <tr><td>2:20–3:20</td><td>The result — fly it</td><td>3D flythrough, Orbit → Fly, Measure</td></tr>
-<tr><td>3:20–4:20</td><td><b>The proof</b> — LiDAR side by side</td><td>Toggle model vs truth on the same scene</td></tr>
+<tr><td>3:20–4:20</td><td><b>The proof</b> — validate the job you just ran</td><td>Upload the LiDAR, read the metrics, toggle Heimdall ↔ Reference</td></tr>
 <tr><td>4:20–5:20</td><td>The numbers</td><td>Accuracy tab</td></tr>
 <tr><td>5:20–6:00</td><td>Honest limits, then close</td><td>Back to the 3D view</td></tr>
 </table>
@@ -68,12 +69,14 @@ satellites. Show them a measurement and they will trust you; use marketing words
 <h2>0:35 – 1:20 · Upload something real</h2>
 <div class="do"><b>Do:</b> Click <b>New processing job</b>. Drag
 <code>utrecht_suburb__UPLOAD_THIS.tif</code> onto the drop zone. Let the thumbnail appear.
-Press <b>Process image</b>. Let the progress bar start moving.</div>
-<div class="say">This is a real aerial GeoTIFF of a suburb near Utrecht, 400 metres across at 25
-centimetres per pixel. It is one of eight sites we hold out — the model has never seen it in
-training.<br><br>
-I am uploading it exactly as an analyst would. No preprocessing, no parameters. The file carries
-its own coordinate system, so the pipeline reads the scale from the image itself.</div>
+Press <b>Process image</b>. Let the progress bar start moving.
+<br><b>Check first:</b> the <b>GSD override</b> box under Advanced must be <b>empty</b>. A GeoTIFF
+states its own scale; a leftover value replaces it and the app will show a warning banner on
+camera.</div>
+<div class="say">A real aerial GeoTIFF of a suburb near Utrecht, 400 metres across at 25
+centimetres per pixel — one of eight sites we hold out, never seen in training.<br><br>
+No preprocessing, no parameters. The file carries its own coordinate system, so the pipeline reads
+the scale from the image itself.</div>
 <div class="do"><b>Do:</b> While it runs, hover the <b>Reference DEM</b> and <b>Ground control
 points</b> fields so they are visible on camera, but leave them empty.</div>
 <div class="say">Both optional. Supply a local terrain model or surveyed control points and the
@@ -105,8 +108,7 @@ Switch to <b>Fly</b> and move slowly down a street at roof height. Keep it smoot
 metres, no vertical exaggeration.</div>
 <div class="do"><b>Do:</b> Click <b>Measure</b>. Draw a line across two or three buildings. Let the
 elevation profile appear underneath.</div>
-<div class="say">Distance along the ground, and the height profile underneath it — measured on the
-reconstruction directly.</div>
+<div class="say">Distance along the ground, and the height profile underneath it.</div>
 <div class="do"><b>Do:</b> Enable the <b>flood</b> toggle and drag the water level up a few metres.
 Let the water plane cut through the scene.</div>
 <div class="say">And because the theme here is disaster management — this cuts a water plane through
@@ -116,18 +118,21 @@ the scene at any level and shows what goes under. From one photograph, on a lapt
 <h2 class="pb">3:20 – 4:20 · The proof</h2>
 <div class="warn"><b>This is the most important minute of the video.</b> Anyone can show a
 plausible-looking 3D render. Almost nobody shows it next to the real measurement. Slow down here.</div>
-<div class="do"><b>Do:</b> Open <b>Example scenes</b> and click <b>Utrecht — suburban</b>, then
-toggle to its <b>-truth</b> twin. Flip between them two or three times, slowly, from the same
-camera angle.</div>
+<div class="do"><b>Do:</b> Scroll to <b>Validate against reference</b> under the viewer. Upload
+<code>utrecht_suburb__truth_heights.tif</code>. Wait for the metrics table and error map.
+A <b>Compare against the reference</b> toggle appears above it — flip
+<b>Heimdall</b> ↔ <b>Reference</b> two or three times, slowly, from the same camera angle.</div>
 <div class="say">This is the part I would want to see if I were evaluating this.<br><br>
-Our reconstruction, and airborne LiDAR of the same ground — the real measurement, same grid, same
-viewer. We ship the ground truth beside our own output so you can judge it rather than take my word
-for it.<br><br>Roads, gardens, the ground between the houses land within about twenty
-centimetres.</div>
-<div class="do"><b>Do:</b> Switch to <b>Philadelphia — riverside</b> and toggle model against truth
-once more.</div>
-<div class="say">And this is a US city from GAMUS — the dataset the problem statement recommends —
-so it is not one country or one sensor. Same behaviour.</div>
+I am handing it the airborne LiDAR for the same ground — the real measurement — and it scores
+itself against it. Two and a half metres on height above ground, and it draws where the error
+is.<br><br>
+And this is the same surface I just reconstructed, flipped against the truth. Same grid, same
+texture, same vertical origin, so only the heights differ. Roads, gardens, the ground between the
+houses land within about twenty centimetres.</div>
+<div class="do"><b>Do:</b> Open <b>Example scenes</b> and click <b>Philadelphia — riverside</b>,
+then toggle <b>Heimdall</b> ↔ <b>LiDAR truth</b> once.</div>
+<div class="say">And a US city from GAMUS, the dataset the problem statement recommends — so this
+is not one country or one sensor.</div>
 <h2>4:20 – 5:20 · The numbers</h2>
 <div class="do"><b>Do:</b> Click the <b>Accuracy</b> tab. Let the table fill the frame. Point at
 the mean row, then at the per-landscape rows.</div>
@@ -163,13 +168,13 @@ twenty-metre one, predicting something in between is mathematically the right an
 scale it up to look better and the measured error would get worse, so we do not.<br><br>
 Ground and roads stay sub-metre. Buildings and trees carry almost all the remaining error, and we
 publish exactly how much.</div>
-<div class="say">All of this runs on a laptop from one command, CPU-only if needed. The trained
-head is six and a half megabytes, and every figure I quoted regenerates from a script in the
-repository.<br><br>One photograph in — a measured, explorable 3D surface out. Thank you.</div>
+<div class="say">All of this runs on a laptop from one command. The trained head is six and a half
+megabytes, and every figure I quoted regenerates from a script in the repository.<br><br>
+One photograph in — a measured, explorable 3D surface out. Thank you.</div>
 
 <h2>Delivery notes</h2>
 <ul>
-<li><b>Pace.</b> 888 spoken words — <b>6 min 55 at a normal pace, 7 min 50 if you speak slowly.</b> Read it once with a timer before recording. If you run long, the metric-model paragraph at 1:20 is the one to cut.</li>
+<li><b>Pace.</b> 885 spoken words — <b>5 min 54 at a normal pace, 6 min 48 if you speak slowly.</b> Read it once with a timer first. If you run long, the block marked OPTIONAL at 1:20 is the one to cut.</li>
 <li><b>Mouse.</b> Move deliberately. Hover a control for a beat before clicking it so the viewer's
 eye can follow.</li>
 <li><b>The two moments that win it</b> are the ground-truth toggle at 3:20 and the honest limitation
