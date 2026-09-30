@@ -14,7 +14,14 @@ export async function POST(req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/v
   } catch {
     return Response.json({ error: 'invalid job id' }, { status: 400 });
   }
-  if (!(await fileExists(metaPath))) return Response.json({ error: 'job not found or not finished' }, { status: 404 });
+  if (!(await fileExists(metaPath))) {
+    // Most often a stale entry in a browser that has been open while the job directory was
+    // cleared, rather than a job that genuinely never finished. Say so, since the fix differs.
+    return Response.json(
+      { error: 'This job is no longer on disk — it may have been cleared. Reload the page and run it again.' },
+      { status: 404 },
+    );
+  }
 
   const form = await req.formData();
   const ref = form.get('reference');

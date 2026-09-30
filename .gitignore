@@ -50,6 +50,11 @@ ehthumbs.db
 # === Node (frontend) ===
 node_modules/
 
+# Processed jobs live here while the app runs. Never delete this directory to tidy up: it holds
+# work the user may still have open in a browser, and it is ignored anyway so it never needs
+# cleaning for a commit.
+outputs/jobs/
+
 # === Shipped artefacts (exceptions to the rules above) ===
 # The trained head the pipeline loads by default, so a clone runs out of the box.
 !checkpoints/decoder/
