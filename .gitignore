@@ -70,6 +70,7 @@ outputs/benchmark_gsd/*
 !outputs/benchmark_gsd/results.md
 !outputs/gamus_test.json
 !outputs/gamus_architecture_comparison.json
+!outputs/evaluation_envelope.json
 !outputs/legacy_docs/
 !outputs/legacy_docs/*.md
 

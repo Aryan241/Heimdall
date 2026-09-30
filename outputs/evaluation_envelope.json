@@ -1,0 +1,110 @@
+{
+ "note": "Measured for the shipped head. The resolution envelope answers the FAQ's 0.35-10 m expectation; the attribution shows how much of the ABSOLUTE DSM error is the Copernicus terrain datum rather than the predicted above-ground height. Source: github.com/IMG-PROCESS-SAC/SIH-DepthWizard-2026/issues/1",
+ "resolution_envelope": {
+  "0.25": {
+   "mean_rmse": 5.353,
+   "mean_r": 0.659,
+   "predict_zero": 8.368,
+   "sites": 16
+  },
+  "0.5": {
+   "mean_rmse": 5.461,
+   "mean_r": 0.651,
+   "predict_zero": 8.368,
+   "sites": 8
+  },
+  "0.6": {
+   "mean_rmse": 5.508,
+   "mean_r": 0.649,
+   "predict_zero": 8.368,
+   "sites": 8
+  },
+  "1.0": {
+   "mean_rmse": 5.724,
+   "mean_r": 0.619,
+   "predict_zero": 8.363,
+   "sites": 8
+  },
+  "2.0": {
+   "mean_rmse": 6.444,
+   "mean_r": 0.637,
+   "predict_zero": 8.323,
+   "sites": 8
+  },
+  "5.0": {
+   "mean_rmse": 8.181,
+   "mean_r": 0.182,
+   "predict_zero": 8.251,
+   "sites": 8
+  },
+  "10.0": {
+   "mean_rmse": 8.112,
+   "mean_r": 0.03,
+   "predict_zero": 8.114,
+   "sites": 8
+  }
+ },
+ "absolute_dsm_attribution": {
+  "per_site": [
+   {
+    "site": "amsterdam_centre",
+    "dtm_rmse": 11.533,
+    "absolute_dsm_rmse": 8.962,
+    "absolute_dsm_rmse_offset_removed": 7.525,
+    "datum_offset_m": 4.84
+   },
+   {
+    "site": "flevoland_farmland",
+    "dtm_rmse": 0.652,
+    "absolute_dsm_rmse": 1.799,
+    "absolute_dsm_rmse_offset_removed": 1.831,
+    "datum_offset_m": -0.29
+   },
+   {
+    "site": "rotterdam_centre",
+    "dtm_rmse": 6.393,
+    "absolute_dsm_rmse": 15.055,
+    "absolute_dsm_rmse_offset_removed": 15.32,
+    "datum_offset_m": 4.31
+   },
+   {
+    "site": "rotterdam_port",
+    "dtm_rmse": 1.184,
+    "absolute_dsm_rmse": 8.383,
+    "absolute_dsm_rmse_offset_removed": 7.935,
+    "datum_offset_m": -0.88
+   },
+   {
+    "site": "utrecht_suburb",
+    "dtm_rmse": 1.767,
+    "absolute_dsm_rmse": 2.419,
+    "absolute_dsm_rmse_offset_removed": 2.244,
+    "datum_offset_m": 1.5
+   },
+   {
+    "site": "valkenburg_hills",
+    "dtm_rmse": 5.4,
+    "absolute_dsm_rmse": 5.128,
+    "absolute_dsm_rmse_offset_removed": 4.016,
+    "datum_offset_m": 2.57
+   },
+   {
+    "site": "veluwe_forest",
+    "dtm_rmse": 4.548,
+    "absolute_dsm_rmse": 4.7,
+    "absolute_dsm_rmse_offset_removed": 3.785,
+    "datum_offset_m": 1.99
+   },
+   {
+    "site": "westland_greenhouses",
+    "dtm_rmse": 1.505,
+    "absolute_dsm_rmse": 2.407,
+    "absolute_dsm_rmse_offset_removed": 2.407,
+    "datum_offset_m": -0.05
+   }
+  ],
+  "mean_dtm_rmse": 4.123,
+  "mean_absolute_dsm_rmse": 6.107,
+  "mean_absolute_dsm_rmse_after_removing_one_offset": 5.633
+ }
+}

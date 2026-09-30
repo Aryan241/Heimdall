@@ -191,6 +191,46 @@ AHN tiles used for training (`scripts/build_ahn_dataset.py`). 400 m sites, 0.25 
 | valkenburg_hills | hilly town | 3.21 | 1.76 | −0.77 | 0.73 | 5.38 |
 | **mean** | | **5.32** | **3.04** | — | **0.668** | **8.37** |
 
+### Evaluation envelope
+
+The problem setters' FAQ states that evaluation uses **Cartosat 2S at 0.6 m**, that the solution
+should work from **0.35 m to 10 m**, and that accuracy is assessed on the **absolute DSM** rather
+than above-ground height.<sup>[FAQ]</sup> Measured for the shipped head on the same eight
+held-out sites:
+
+| Input GSD | mean nDSM RMSE | r | predict-zero | |
+|---|---|---|---|---|
+| 0.25 m | 5.35 m | 0.66 | 8.37 m | native training resolution |
+| 0.5 m | 5.46 m | 0.65 | 8.37 m | — |
+| 0.6 m | 5.51 m | 0.65 | 8.37 m | **the stated evaluation resolution (Cartosat 2S)** |
+| 1.0 m | 5.72 m | 0.62 | 8.36 m | — |
+| 2.0 m | 6.44 m | 0.64 | 8.32 m | usable, degrading |
+| 5.0 m | 8.18 m | 0.18 | 8.25 m | marginal — barely beats a flat guess |
+| 10.0 m | 8.11 m | 0.03 | 8.11 m | no useful signal; buildings span 1–3 pixels |
+
+Performance at the resolution that will actually be used is within 0.16 m of native. Beyond about
+2 m the signal degrades, and by 10 m a building spans one to three pixels, leaving nothing to infer
+height from — raising the internal up-sampling cap from 3× to 30× does not recover it (r 0.001 vs
+0.042), so this is an information limit rather than a tuning choice. The pipeline warns when the
+working GSD drifts more than 25% from the training scale, and that warning surfaces in the viewer.
+
+### Absolute DSM, which is the graded quantity
+
+| | mean RMSE |
+|---|---|
+| Predicted height above ground (nDSM) | **5.32 m** |
+| The Copernicus GLO-30 terrain datum, on its own | 4.12 m |
+| Resulting absolute DSM | **6.11 m** |
+| Absolute DSM, one constant offset removed | 5.63 m |
+
+About half a metre of the absolute-DSM penalty is a **constant vertical offset** — the geoid
+difference between Copernicus (EGM2008) and the local datum. Per-site offsets range from −0.9 m to
++4.8 m. **A single ground control point removes it**, which the FAQ explicitly permits; the GCP
+module reduces residual error from 0.70 m to 0.07 m on `utrecht_suburb`. For an absolute-DSM
+evaluation, supplying one surveyed point is the cheapest accuracy available.
+
+<sup>[FAQ]</sup> github.com/IMG-PROCESS-SAC/SIH-DepthWizard-2026/issues/1
+
 **Against the previous (shipped) head**, same sites, same script:
 
 | | mean RMSE | mean MAE | mean r |

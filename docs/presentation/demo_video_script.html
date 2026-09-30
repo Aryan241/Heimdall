@@ -1,0 +1,197 @@
+<!doctype html><html><head><meta charset="utf-8"><title>DepthWizard — Demo Video Script</title>
+<style>
+@page{size:A4;margin:14mm 13mm}
+body{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-size:9.8pt;line-height:1.5;color:#1a1a1a;margin:0}
+h1{font-size:20pt;color:#1f3864;margin:0 0 2mm}
+h2{font-size:12.5pt;color:#1f3864;margin:7mm 0 2mm;border-bottom:2px solid #2e75b6;padding-bottom:1.2mm;page-break-after:avoid}
+h3{font-size:10.6pt;color:#2e75b6;margin:5mm 0 1.5mm;page-break-after:avoid}
+p,li{margin:0 0 1.8mm}
+ul{margin:0 0 2mm;padding-left:5mm}
+table{border-collapse:collapse;width:100%;margin:2mm 0 3mm;font-size:8.8pt;page-break-inside:avoid}
+th{background:#1f3864;color:#fff;text-align:left;padding:1.5mm 2mm}
+td{border-bottom:1px solid #dde3ec;padding:1.5mm 2mm;vertical-align:top}
+tr:nth-child(even) td{background:#f6f8fb}
+.beat{border-left:3.5px solid #2e75b6;background:#f6f8fb;padding:2.5mm 3mm;margin:3mm 0;page-break-inside:avoid}
+.beat .t{font-size:8.4pt;color:#2e75b6;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+.do{background:#eef7ee;border-left:3.5px solid #2e7d32;padding:2mm 3mm;margin:2mm 0;font-size:9.2pt}
+.do b{color:#2e7d32}
+.say{background:#fff;border:1px solid #c9d4e4;border-radius:3px;padding:2.5mm 3mm;margin:2mm 0}
+.say:before{content:"SAY";font-size:7.4pt;color:#888;font-weight:700;letter-spacing:.6px;display:block;margin-bottom:1mm}
+.warn{background:#fff4e5;border-left:3.5px solid #c55a11;padding:2.5mm 3mm;margin:3mm 0}
+.lead{font-size:10.6pt;color:#444;margin-bottom:4mm}
+.pb{page-break-before:always}
+code{font-family:"SF Mono",Menlo,monospace;font-size:8.6pt;background:#eef2f7;padding:.3mm 1.2mm;border-radius:2px}
+.meta{font-size:8pt;color:#777;border-top:1px solid #ddd;padding-top:1.5mm;margin-top:4mm}
+</style></head><body>
+<h1>DepthWizard — Demo Video Script</h1>
+<p class="lead">SIH 2026 · PS <b>SIH26175</b> (ISRO / SAC) · Theme: <b>Disaster Management</b>.
+A 5–6 minute screen recording of the local prototype, narrated live. Green boxes are what you
+<b>do</b>; bordered boxes are what you <b>say</b>.</p>
+
+<h2>Before you hit record</h2>
+<table>
+<tr><th style="width:26%">Step</th><th>Why</th></tr>
+<tr><td>Start the app: <code>cd heimdall-web && npm run dev</code></td><td>Wait until it says Ready. Open <code>localhost:3000</code>.</td></tr>
+<tr><td><b>Pre-run one job and leave it in Recent jobs</b></td><td>Insurance. If the live run is slow you can cut to a finished one without dead air.</td></tr>
+<tr><td>Have <code>Heimdall_test_samples/AHN/utrecht_suburb__UPLOAD_THIS.tif</code> ready</td><td>This is the file you drag in on camera.</td></tr>
+<tr><td>Browser at 100% zoom, full screen, close other tabs</td><td>The 3D view needs the space and a clean frame reads as professional.</td></tr>
+<tr><td>Click into a scene once and orbit, then reload</td><td>Warms the WebGL context so the first render is not janky on camera.</td></tr>
+<tr><td>Silence notifications</td><td>An ntfy popup mid-take costs you a re-record.</td></tr>
+</table>
+<div class="warn"><b>One rule for the whole video: never read a number off the screen that you have
+not earned.</b> Every figure below is measured and in the repository. If an evaluator pauses the
+video and checks, it holds up — that is the impression you want.</div>
+
+<h2>The shape of it</h2>
+<table>
+<tr><th style="width:12%">Time</th><th style="width:30%">Beat</th><th>What is on screen</th></tr>
+<tr><td>0:00–0:35</td><td>The problem</td><td>Landing page, one bundled scene already open</td></tr>
+<tr><td>0:35–1:20</td><td>Upload a real image, start it</td><td>Drag the GeoTIFF in, press Process image</td></tr>
+<tr><td>1:20–2:20</td><td>How it works, while it runs</td><td>Live progress log and stage list</td></tr>
+<tr><td>2:20–3:20</td><td>The result — fly it</td><td>3D flythrough, Orbit → Fly, Measure</td></tr>
+<tr><td>3:20–4:20</td><td><b>The proof</b> — LiDAR side by side</td><td>Toggle model vs truth on the same scene</td></tr>
+<tr><td>4:20–5:20</td><td>The numbers</td><td>Accuracy tab</td></tr>
+<tr><td>5:20–6:00</td><td>Honest limits, then close</td><td>Back to the 3D view</td></tr>
+</table>
+
+<h2 class="pb">0:00 – 0:35 · The problem</h2>
+<div class="do"><b>Do:</b> Open on the app with <b>Utrecht — suburban</b> already loaded in the 3D
+view. Slowly orbit once while you talk. Do not click anything yet.</div>
+<div class="say">Elevation data is the first thing you want after a flood or an earthquake, and the
+first thing you do not have. A LiDAR survey is a commissioned flight — weeks and a budget. What you
+usually <i>do</i> have is a satellite photograph.<br><br>
+This is DepthWizard. One ordinary RGB image in; the surface in metres out — buildings, terrain,
+canopy — as a 3D scene you can fly through. No stereo pair, no LiDAR.</div>
+<div class="warn"><b>Do not say "AI-powered" or "state of the art".</b> The people watching build
+satellites. Show them a measurement and they will trust you; use marketing words and they will not.</div>
+
+<h2>0:35 – 1:20 · Upload something real</h2>
+<div class="do"><b>Do:</b> Click <b>New processing job</b>. Drag
+<code>utrecht_suburb__UPLOAD_THIS.tif</code> onto the drop zone. Let the thumbnail appear.
+Press <b>Process image</b>. Let the progress bar start moving.</div>
+<div class="say">This is a real aerial GeoTIFF of a suburb near Utrecht, 400 metres across at 25
+centimetres per pixel. It is one of eight sites we hold out — the model has never seen it in
+training.<br><br>
+I am uploading it exactly as an analyst would. No preprocessing, no parameters. The file carries
+its own coordinate system, so the pipeline reads the scale from the image itself.</div>
+<div class="do"><b>Do:</b> While it runs, hover the <b>Reference DEM</b> and <b>Ground control
+points</b> fields so they are visible on camera, but leave them empty.</div>
+<div class="say">Both optional. Supply a local terrain model or surveyed control points and the
+output ties to your datum — one control point is worth about half a metre on absolute elevation. I
+am leaving them empty to show the default path: everything it needs, it fetches itself.</div>
+<h2>1:20 – 2:20 · How it works, while it runs</h2>
+<div class="do"><b>Do:</b> Point at the live stage list as each one lights up — <b>Ingest &amp;
+georeferencing</b>, <b>Ground sample distance</b>, <b>Height estimation</b>, <b>Absolute
+calibration</b>, <b>Textured 3D mesh</b>.</div>
+<div class="say">While that runs, the interesting part is why this works at all.<br><br>
+A depth model trained on ordinary photographs predicts <i>relative</i> depth — what is nearer,
+what is further. It has no idea what a metre is. So we freeze that model and train a small head on
+top of it, against real airborne LiDAR, whose only job is to turn relative depth into metres above
+ground.<br><br>
+The obvious alternative is a metric depth model that outputs metres directly. We tried it. Those
+models assume a camera with a focal point, and a satellite orthomosaic has none — every pixel looks
+straight down. Its correlation with true height was <b>0.06</b>. Effectively zero. The relative
+model reaches <b>0.41</b> before we train anything on top.</div>
+<div class="say" style="border-style:dashed"><b>[OPTIONAL — cut this first if you are running
+long]</b><br>That one measurement is why the system is built this way. And it matches what the
+problem statement itself suggests: anchoring scale-agnostic depth to a coarse DEM.</div>
+<div class="warn"><b>If the job finishes early, stop talking and move on.</b> Do not stretch the
+explanation to fill time. A crisp video that ends at 5:20 beats a padded one at 6:30.</div>
+
+<h2>2:20 – 3:20 · The result</h2>
+<div class="do"><b>Do:</b> The job completes and the <b>3D flythrough</b> opens. Orbit once.
+Switch to <b>Fly</b> and move slowly down a street at roof height. Keep it smooth — no fast spins.</div>
+<div class="say">That is the surface, from the single image I uploaded ten seconds ago. True
+metres, no vertical exaggeration.</div>
+<div class="do"><b>Do:</b> Click <b>Measure</b>. Draw a line across two or three buildings. Let the
+elevation profile appear underneath.</div>
+<div class="say">Distance along the ground, and the height profile underneath it — measured on the
+reconstruction directly.</div>
+<div class="do"><b>Do:</b> Enable the <b>flood</b> toggle and drag the water level up a few metres.
+Let the water plane cut through the scene.</div>
+<div class="say">And because the theme here is disaster management — this cuts a water plane through
+the scene at any level and shows what goes under. From one photograph, on a laptop, in seconds.</div>
+<div class="do"><b>Do:</b> Turn the flood off before moving on.</div>
+
+<h2 class="pb">3:20 – 4:20 · The proof</h2>
+<div class="warn"><b>This is the most important minute of the video.</b> Anyone can show a
+plausible-looking 3D render. Almost nobody shows it next to the real measurement. Slow down here.</div>
+<div class="do"><b>Do:</b> Open <b>Example scenes</b> and click <b>Utrecht — suburban</b>, then
+toggle to its <b>-truth</b> twin. Flip between them two or three times, slowly, from the same
+camera angle.</div>
+<div class="say">This is the part I would want to see if I were evaluating this.<br><br>
+Our reconstruction, and airborne LiDAR of the same ground — the real measurement, same grid, same
+viewer. We ship the ground truth beside our own output so you can judge it rather than take my word
+for it.<br><br>Roads, gardens, the ground between the houses land within about twenty
+centimetres.</div>
+<div class="do"><b>Do:</b> Switch to <b>Philadelphia — riverside</b> and toggle model against truth
+once more.</div>
+<div class="say">And this is a US city from GAMUS — the dataset the problem statement recommends —
+so it is not one country or one sensor. Same behaviour.</div>
+<h2>4:20 – 5:20 · The numbers</h2>
+<div class="do"><b>Do:</b> Click the <b>Accuracy</b> tab. Let the table fill the frame. Point at
+the mean row, then at the per-landscape rows.</div>
+<div class="say">Every number behind that comparison is in the app, not in a slide.<br><br>
+Across eight held-out Dutch sites, scored against airborne LiDAR: <b>5.32 metres RMSE</b> on height
+above ground, correlation <b>0.67</b>. The honest reference point is predicting nothing at all —
+assuming flat ground everywhere — and that is <b>8.37 metres</b>.<br><br>
+On the full absolute DSM, terrain plus structures, we are at <b>6.11 metres</b> — and about half a
+metre of that is not our model at all. It is the constant offset between the global terrain datum
+and the local one. Supply a single ground control point and it drops to <b>5.63</b>.<br><br>
+Ground and low vegetation, which are most of any image, come in at <b>0.82</b> and <b>0.86</b>
+metres.</div>
+<div class="do"><b>Do:</b> Point at the four landscape rows.</div>
+<div class="say">The problem statement asks for stability across urban, sparse, hilly and forested
+terrain, so we measured each separately rather than hiding behind one average. Forest 2.24, sparse
+farmland 1.56, hilly town 3.21, urban 8.40.</div>
+<div class="do"><b>Do:</b> Scroll to the resolution figures.</div>
+<div class="say">And because evaluation uses Cartosat 2S at sixty centimetres — the same model,
+on the same sites, with the imagery degraded to match. <b>5.35</b> metres at twenty-five
+centimetres, <b>5.51</b> at sixty, <b>5.72</b> at one metre. Essentially flat across the range that
+matters.<br><br>
+Past two metres it degrades, and by ten metres a building is one to three pixels across and there
+is nothing left to measure. We say so, and the pipeline warns you when the input is outside the
+range it was trained for.</div>
+
+<h2>5:20 – 6:00 · Limits, then close</h2>
+<div class="do"><b>Do:</b> Go back to the <b>3D flythrough</b> on a scene with tall buildings.
+Orbit gently while you finish.</div>
+<div class="say">One limitation, stated plainly, because you will see it if you look closely.<br><br>
+Tall structures come out short — roughly half their true height on the tallest buildings. A single
+nadir photograph contains no parallax, so when the model cannot tell a ten-metre building from a
+twenty-metre one, predicting something in between is mathematically the right answer. We could
+scale it up to look better and the measured error would get worse, so we do not.<br><br>
+Ground and roads stay sub-metre. Buildings and trees carry almost all the remaining error, and we
+publish exactly how much.</div>
+<div class="say">All of this runs on a laptop from one command, CPU-only if needed. The trained
+head is six and a half megabytes, and every figure I quoted regenerates from a script in the
+repository.<br><br>One photograph in — a measured, explorable 3D surface out. Thank you.</div>
+
+<h2>Delivery notes</h2>
+<ul>
+<li><b>Pace.</b> 888 spoken words — <b>6 min 55 at a normal pace, 7 min 50 if you speak slowly.</b> Read it once with a timer before recording. If you run long, the metric-model paragraph at 1:20 is the one to cut.</li>
+<li><b>Mouse.</b> Move deliberately. Hover a control for a beat before clicking it so the viewer's
+eye can follow.</li>
+<li><b>The two moments that win it</b> are the ground-truth toggle at 3:20 and the honest limitation
+at 5:20. Slow down for both. Volunteering a weakness reads as confidence, and evaluators notice.</li>
+<li><b>If the live job fails on camera</b>, do not restart it. Say "I have one already processed"
+and click it in <b>Recent jobs</b>. Recovering smoothly looks better than a clean take.</li>
+<li><b>Do not</b> show the terminal, the code, or the file system. Prototype only.</li>
+</ul>
+
+<h3>Numbers, for quick reference</h3>
+<table>
+<tr><th style="width:52%">Figure</th><th>Value</th></tr>
+<tr><td>Mean RMSE, 8 held-out LiDAR sites</td><td><b>5.32 m</b></td></tr>
+<tr><td>Mean absolute error · correlation</td><td>3.04 m · 0.67</td></tr>
+<tr><td>Predicting zero height (the baseline we beat)</td><td>8.37 m</td></tr>
+<tr><td>Ground · low vegetation</td><td>0.82 m · 0.86 m</td></tr>
+<tr><td>Forest · sparse · hilly · urban</td><td>2.24 · 1.56 · 3.21 · 8.40 m</td></tr>
+<tr><td>Resolution: 0.25 m → 1 m → 2 m</td><td>5.35 → 5.72 → 6.44 m</td></tr>
+<tr><td>GAMUS test split (703 tiles)</td><td>4.74 m, vs 8.59 m predicting nothing</td></tr>
+<tr><td>Metric backbone vs relative, correlation with true height</td><td>0.06 vs 0.41</td></tr>
+<tr><td>Trained head size · inference</td><td>6.6 MB · ~4.5 s per 400 m site</td></tr>
+</table>
+<div class="meta">Every figure regenerates with <code>python scripts/benchmark_ahn.py</code> and is
+read from <code>outputs/benchmark_ahn/results.json</code>. Repository: github.com/Aryan241/Heimdall</div>
+</body></html>

@@ -646,6 +646,57 @@ a prepared answer is worth more than an unprompted claim.</div>
 <tr><td>1 m</td><td><b>5.72 m</b></td><td>+0.37 m</td><td>Cartosat-2 / high-res commercial</td></tr>
 <tr><td>2 m</td><td><b>6.44 m</b></td><td>+1.09 m</td><td>Cartosat-1 / Sentinel-2 upsampled</td></tr>
 </table><p style='font-size:8.4pt;color:#666'>Achieved by normalising every input to the 0.33 m training GSD before inference, so the model always sees features at the scale it was trained on. Upsampling is capped at 3× so we never invent detail that is not there.</p>
+<div class="pagebreak"></div>
+<h2>15 · What the problem setters' FAQ says, and how we answer it</h2>
+<p>The SAC team maintain an FAQ at
+<code>github.com/IMG-PROCESS-SAC/SIH-DepthWizard-2026/issues/1</code>. Two answers there are not in
+the portal listing or the repository README, and both change how the work should be presented.</p>
+
+<h3>They evaluate the absolute DSM, not height above ground</h3>
+<p><i>"We will provide Geotiff images during evaluation so we will evaluate with <b>absolute DSM</b>
+such as SRTM or Copernicus."</i></p>
+<table>
+<tr><th style="width:62%">Quantity</th><th>Mean RMSE</th></tr>
+<tr><td>Predicted height above ground (nDSM) — what we headline elsewhere</td><td>5.32 m</td></tr>
+<tr><td>The Copernicus GLO-30 terrain datum, measured on its own</td><td>4.12 m</td></tr>
+<tr style="background:#eef7ee"><td><b>Absolute DSM — the graded quantity</b></td><td><b>6.11 m</b></td></tr>
+<tr><td>Absolute DSM with one constant offset removed</td><td>5.63 m</td></tr>
+</table>
+<div class="good"><b>Quote both numbers, and offer the fix.</b> Roughly half a metre of the
+absolute-DSM penalty is a constant vertical offset — the geoid difference between Copernicus
+(EGM2008) and the local datum, running from −0.9 m to +4.8 m across our sites. <b>A single ground
+control point removes it</b>, and the FAQ explicitly permits GCPs. Our GCP module cuts residual
+error from 0.70 m to 0.07 m on one site. For an absolute-DSM evaluation this is the cheapest
+accuracy available, and it is worth saying out loud.</div>
+
+<h3>The resolution they will use, and the range they expect</h3>
+<p><i>"Cartosat 2S imageries with resolution of <b>0.6m</b> will be used for final evaluation but
+your model should work on any image which have spatial resolution of <b>0.35m to 10m</b>."</i></p>
+<table>
+<tr><th>Input GSD</th><th>nDSM RMSE</th><th>r</th><th>predict-zero</th><th></th></tr>
+<tr><td>0.25 m</td><td><b>5.35 m</b></td><td>0.66</td><td>8.37 m</td><td>native training resolution</td></tr><tr><td>0.5 m</td><td><b>5.46 m</b></td><td>0.65</td><td>8.37 m</td><td>—</td></tr><tr style="background:#eef7ee"><td>0.6 m</td><td><b>5.51 m</b></td><td>0.65</td><td>8.37 m</td><td><b>the stated evaluation resolution (Cartosat 2S)</b></td></tr><tr><td>1.0 m</td><td><b>5.72 m</b></td><td>0.62</td><td>8.36 m</td><td>—</td></tr><tr><td>2.0 m</td><td><b>6.44 m</b></td><td>0.64</td><td>8.32 m</td><td>usable, degrading</td></tr><tr><td>5.0 m</td><td><b>8.18 m</b></td><td>0.18</td><td>8.25 m</td><td>marginal — barely beats a flat guess</td></tr><tr><td>10.0 m</td><td><b>8.11 m</b></td><td>0.03</td><td>8.11 m</td><td>no useful signal; a building spans 1–3 pixels</td></tr>
+</table>
+<p><b>At the resolution that will actually be used we are within 0.16 m of native.</b> Beyond about
+2 m the signal degrades, and by 10 m a building spans one to three pixels. Raising the internal
+up-sampling cap from 3× to 30× does not recover it (r 0.001 against 0.042), so this is an
+information limit, not a tuning choice.</p>
+<div class="slide"><b>How to present the range.</b> Claim <b>0.25–2 m as validated</b>, name 0.6 m
+explicitly because it is their sensor, and state plainly that coarser imagery degrades. The
+pipeline already warns the user when working GSD drifts more than 25% from the training scale, and
+that warning appears in the viewer — that is a strength to show, not a weakness to hide.</div>
+
+<h3>The rest of the FAQ, briefly</h3>
+<table>
+<tr><th style="width:52%">Their answer</th><th>Where we stand</th></tr>
+<tr><td>"Any DEM source" may be used for calibration</td><td>Copernicus GLO-30, auto-fetched — explicitly allowed</td></tr>
+<tr><td>"We will not provide any reference data"</td><td>We bring AHN and GAMUS, both open and held out</td></tr>
+<tr><td>"There will be a separate dataset for evaluation"</td><td>Everything we quote is already held out</td></tr>
+<tr><td>Scoring is "relative to other participants"</td><td>Breadth of evidence matters more than any single figure</td></tr>
+<tr><td>"Nadir-viewed images… no sun-angle or time of acquisition"</td><td>We use neither</td></tr>
+<tr><td>A locally hosted web app counts as standalone deployment</td><td><code>./run.sh</code> qualifies; no executable needed</td></tr>
+<tr><td>Extra features earn "no additional marking… but impact on the viewer"</td><td>Flood tool, measurement and the LiDAR comparison are UX assets, not deliverables — demo them, do not claim them</td></tr>
+<tr><td>Full geospatial metadata and CRS handling expected</td><td>Rasterio throughout, including non-metre CRS units</td></tr>
+</table>
 <div class="meta">
 Generated 29 September 2026 from the shipped checkpoint <code>decoder_best.pth</code> (Depth Anything
 V2 Base + multi-scale DPT head, epoch 28). Every accuracy figure in this document is read from
