@@ -72,14 +72,19 @@ def _resample_to_grid(src_path: Path, transform, crs_wkt: str, shape: tuple[int,
     return dst
 
 
-def build_truth_scene(model_dir: Path, out_dir: Path, ahn_ndsm: Path, stem: str) -> dict:
-    """Clone the model scene with LiDAR heights in place of predicted ones."""
+def build_truth_scene(model_dir: Path, out_dir: Path, ahn_ndsm: Path, stem: str,
+                      meta_path: Path | None = None) -> dict:
+    """Clone the model scene with LiDAR heights in place of predicted ones.
+
+    *meta_path* lets a caller point at the metadata explicitly; a bundled demo scene names it
+    after its own directory, but a web job writes <JOB_NAME>_meta.json instead.
+    """
     import rasterio
     from heimdall.mesh.mesher import build_textured_mesh, export_glb
     from heimdall.output import writers
     from heimdall.pipeline import _grid_layer
 
-    meta = json.loads((model_dir / f"{model_dir.name}_meta.json").read_text())
+    meta = json.loads((meta_path or model_dir / f"{model_dir.name}_meta.json").read_text())
     wt = meta.get("working_transform")
     transform = rasterio.transform.Affine(*wt) if wt else None
     shape = tuple(meta["working_shape"])

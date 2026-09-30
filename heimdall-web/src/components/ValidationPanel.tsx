@@ -66,11 +66,15 @@ function Row({ name, m }: { name: string; m?: Metrics }) {
   );
 }
 
-export default function ValidationPanel({ scene, canValidate }: { scene: Scene; canValidate: boolean }) {
+export default function ValidationPanel(
+  { scene, canValidate, onTruthScene }:
+  { scene: Scene; canValidate: boolean; onTruthScene?: (metaFile: string) => void },
+) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [report, setReport] = useState<ValidationReport | null>(null);
+  const [truthScene, setTruthScene] = useState<string | null>(null);
   const [view, setView] = useState<'surface' | 'agl'>(scene.meta.product === 'absolute_dsm' ? 'surface' : 'agl');
 
   const run = async (file: File) => {
@@ -83,6 +87,7 @@ export default function ValidationPanel({ scene, canValidate }: { scene: Scene; 
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Validation failed');
       setReport(body.report);
+      setTruthScene(typeof body.truthScene === 'string' ? body.truthScene : null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -148,6 +153,12 @@ export default function ValidationPanel({ scene, canValidate }: { scene: Scene; 
           <h4 className="subheading">Error distribution</h4>
           <Histogram counts={report.histogram.counts} edges={report.histogram.edges} />
           {/* eslint-disable-next-line @next/next/no-img-element */}
+          {truthScene && onTruthScene && (
+            <button className="btn-secondary" style={{ marginBottom: 8 }}
+              onClick={() => onTruthScene(truthScene)}>
+              Fly through the reference
+            </button>
+          )}
           <img className="result-img" src={`${scene.baseUrl}${report.files.error_png}`} alt="Error map" />
           <a className="download-link" href={`${scene.baseUrl}${report.files.json}`} download>Download validation report (JSON)</a>
         </div>

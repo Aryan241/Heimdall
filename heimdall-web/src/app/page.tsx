@@ -466,7 +466,10 @@ export default function Home() {
             )}
           </section>
 
-          {scene && !STATIC_DEMO && <ValidationPanel key={scene.id} scene={scene} canValidate={!meta?.comparison} />}
+          {scene && !STATIC_DEMO && (
+            <ValidationPanel key={scene.id} scene={scene} canValidate={!meta?.comparison}
+              onTruthScene={(metaFile) => openScene(`${scene.id}-truth`, scene.baseUrl, metaFile)} />
+          )}
 
           {!STATIC_DEMO && jobs.length > 0 && (
             <section className="panel">

@@ -115,7 +115,7 @@ export interface ValidationReport {
 }
 
 export interface PipelineEvent {
-  event: 'stage' | 'progress' | 'info' | 'warning' | 'done' | 'error' | 'validation';
+  event: 'stage' | 'progress' | 'info' | 'warning' | 'done' | 'error' | 'validation' | 'truth_scene';
   stage?: string;
   message?: string;
   current?: number;

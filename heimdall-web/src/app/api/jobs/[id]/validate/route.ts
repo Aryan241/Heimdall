@@ -44,5 +44,23 @@ export async function POST(req: NextRequest, ctx: RouteContext<'/api/jobs/[id]/v
     return Response.json({ error: error ?? log.slice(-5).join('\n') ?? 'validation failed' }, { status: 422 });
   }
   const report = JSON.parse(await readFile(jobPath(id, reportFile), 'utf8'));
-  return Response.json({ report });
+
+  // Build a flythrough scene from the reference as well, on the job's own grid, so the two can be
+  // compared by eye rather than only by number. It reuses the prediction's grid, texture and
+  // vertical origin and runs no inference, so it costs well under a second; a failure here must
+  // not lose the validation the user already has.
+  let truthScene: string | null = null;
+  try {
+    const stem = `truth_${stamp}`;
+    const { done: truthDone } = runPython(
+      'scripts/build_truth_scene.py',
+      ['--meta', metaPath, '--reference', jobPath(id, refName), '--out-dir', jobPath(id), '--stem', stem],
+      { onEvent: (e) => { if (e.event === 'truth_scene') truthScene = String(e.meta); } },
+    );
+    if (await truthDone !== 0) truthScene = null;
+  } catch {
+    truthScene = null;
+  }
+
+  return Response.json({ report, truthScene });
 }
