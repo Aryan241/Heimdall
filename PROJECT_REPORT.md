@@ -225,7 +225,9 @@ working GSD drifts more than 25% from the training scale, and that warning surfa
 
 About half a metre of the absolute-DSM penalty is a **constant vertical offset** — the geoid
 difference between Copernicus (EGM2008) and the local datum. Per-site offsets range from −0.9 m to
-+4.8 m. **A single ground control point removes it**, which the FAQ explicitly permits; the GCP
++4.8 m. **A single ground control point removes it** — and the problem statement names "minimal Ground
+Control Points" as an expected route for scale calibration, so this is a designed-for input rather
+than a workaround. The GCP
 module reduces residual error from 0.70 m to 0.07 m on `utrecht_suburb`. For an absolute-DSM
 evaluation, supplying one surveyed point is the cheapest accuracy available.
 
