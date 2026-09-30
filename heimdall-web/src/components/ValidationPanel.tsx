@@ -107,13 +107,18 @@ export default function ValidationPanel(
       <button className="btn-secondary" disabled={!canValidate || busy} onClick={() => input.current?.click()}>
         {busy ? 'Validating…' : 'Upload reference DSM'}
       </button>
-      {!canValidate && (
+      {!canValidate && (scene.meta.comparison ? (
         <p className="muted small">
           This example scene already ships with its airborne-LiDAR reference — switch to
           &ldquo;LiDAR truth&rdquo; above to compare against it. Process your own image to validate
           against a reference of your choosing.
         </p>
-      )}
+      ) : (
+        <p className="muted small">
+          You are viewing the reference surface. Switch back to &ldquo;Heimdall&rdquo; above to
+          validate against another raster.
+        </p>
+      ))}
       {error && <div className="error-box">{error}</div>}
 
       {report && (

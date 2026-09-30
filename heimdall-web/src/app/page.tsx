@@ -63,6 +63,9 @@ const sceneUrl = (id: string) => ({ base: `/${id}/`, meta: `${id}_meta.json` });
 
 export default function Home() {
   const [scene, setScene] = useState<Scene | null>(null);
+  // A validated job gets a reference scene on the same grid. Held here rather than in the
+  // panel so that toggling between the two does not unmount the panel and lose the report.
+  const [jobTruth, setJobTruth] = useState<{ jobId: string; metaFile: string } | null>(null);
   const [grid, setGrid] = useState<TerrainGrid | null>(null);
   const [loadError, setLoadError] = useState('');
   const [tab, setTab] = useState<'3d' | 'maps' | 'accuracy' | 'report'>('3d');
@@ -466,10 +469,38 @@ export default function Home() {
             )}
           </section>
 
-          {scene && !STATIC_DEMO && (
-            <ValidationPanel key={scene.id} scene={scene} canValidate={!meta?.comparison}
-              onTruthScene={(metaFile) => openScene(`${scene.id}-truth`, scene.baseUrl, metaFile)} />
-          )}
+          {scene && !STATIC_DEMO && (() => {
+            const jobId = scene.id.replace(/-truth$/, '');
+            const truth = jobTruth?.jobId === jobId ? jobTruth : null;
+            const onTruth = scene.id.endsWith('-truth');
+            return (
+              <>
+                {truth && (
+                  <section className="panel">
+                    <h3 className="panel-heading">Compare against the reference</h3>
+                    <p className="muted">
+                      Same place, same grid, same texture — only the heights differ. Flip between them.
+                    </p>
+                    <div className="seg" style={{ marginTop: 8 }}>
+                      <button className={`chip ${!onTruth ? 'chip--on' : ''}`}
+                        onClick={() => openScene(jobId, `/api/jobs/${jobId}/files/`, 'result_meta.json')}>
+                        Heimdall
+                      </button>
+                      <button className={`chip ${onTruth ? 'chip--on' : ''}`}
+                        onClick={() => openScene(`${jobId}-truth`, `/api/jobs/${jobId}/files/`, truth.metaFile)}>
+                        Reference
+                      </button>
+                    </div>
+                  </section>
+                )}
+                <ValidationPanel key={jobId} scene={scene} canValidate={!meta?.comparison && !onTruth}
+                  onTruthScene={(metaFile) => {
+                    setJobTruth({ jobId, metaFile });
+                    openScene(`${jobId}-truth`, `/api/jobs/${jobId}/files/`, metaFile);
+                  }} />
+              </>
+            );
+          })()}
 
           {!STATIC_DEMO && jobs.length > 0 && (
             <section className="panel">
