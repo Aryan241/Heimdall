@@ -207,7 +207,7 @@ requirement to evidence — a judge can then tick them off while you talk.</p>
 <tr><td>Height from a <b>single</b> view</td><td>Frozen relative-depth backbone + trained metric head; no stereo, no LiDAR</td><td>5.32 m RMSE vs airborne LiDAR, 8 held-out sites</td></tr>
 <tr><td>Produce a <b>DSM</b></td><td>nDSM from the model + Copernicus GLO-30 datum → absolute DSM, written as GeoTIFF</td><td>DSM, DTM and nDSM all exported, georeferenced</td></tr>
 <tr><td><b>3D flythrough</b></td><td>Textured glTF mesh in true metres, WebGL viewer with free-fly navigation</td><td>Runs in-browser; three demo scenes bundled</td></tr>
-<tr><td>Works on <b>satellite RGB</b>, not just aerial</td><td>Every input normalised to the 0.33 m training GSD before inference</td><td>Flat 0.25 → 1 m (5.52 → 5.83 m); graceful at 2 m</td></tr>
+<tr><td>Works on <b>satellite RGB</b>, not just aerial</td><td>Every input normalised to the 0.33 m training GSD before inference</td><td>Flat 0.25 → 1 m (5.35 → 5.72 m); graceful at 2 m</td></tr>
 <tr><td><b>Stability</b> across urban, sparse, hilly, forested</td><td>Training set deliberately sampled across all four; each measured separately</td><td>urban 8.40 · sparse 1.56 · hilly 3.21 · forested 2.24 m</td></tr>
 <tr><td><b>Standalone deployment</b></td><td>One command; CPU fallback; 6.6 MB head; offline after first fetch</td><td><code>./run.sh</code> on a clean machine</td></tr>
 </table>
@@ -641,10 +641,10 @@ a prepared answer is worth more than an unprompted claim.</div>
 <p>The same shipped model, run on the same eight sites, with the imagery degraded to coarser sensor resolutions by area averaging. This is the strongest available answer to <i>'will it work on our satellite data?'</i></p>
 <div class='fig'><img src='fig/gsd.png'><p class='cap'>Figure 5 — Accuracy against input resolution. Flat from 0.25 m to 1 m; graceful, not catastrophic, at 2 m.</p></div>
 <table><tr><th>Input GSD</th><th>Mean RMSE</th><th>Change vs 0.25 m</th><th>Comparable sensor</th></tr>
-<tr><td>0.25 m</td><td><b>5.52 m</b></td><td>+0.00 m</td><td>aerial / drone orthophoto</td></tr>
-<tr><td>0.5 m</td><td><b>5.61 m</b></td><td>+0.09 m</td><td>WorldView-class panchromatic</td></tr>
-<tr><td>1 m</td><td><b>5.83 m</b></td><td>+0.30 m</td><td>Cartosat-2 / high-res commercial</td></tr>
-<tr><td>2 m</td><td><b>6.42 m</b></td><td>+0.89 m</td><td>Cartosat-1 / Sentinel-2 upsampled</td></tr>
+<tr><td>0.25 m</td><td><b>5.35 m</b></td><td>+0.00 m</td><td>aerial / drone orthophoto</td></tr>
+<tr><td>0.5 m</td><td><b>5.46 m</b></td><td>+0.11 m</td><td>WorldView-class panchromatic</td></tr>
+<tr><td>1 m</td><td><b>5.72 m</b></td><td>+0.37 m</td><td>Cartosat-2 / high-res commercial</td></tr>
+<tr><td>2 m</td><td><b>6.44 m</b></td><td>+1.09 m</td><td>Cartosat-1 / Sentinel-2 upsampled</td></tr>
 </table><p style='font-size:8.4pt;color:#666'>Achieved by normalising every input to the 0.33 m training GSD before inference, so the model always sees features at the scale it was trained on. Upsampling is capped at 3× so we never invent detail that is not there.</p>
 <div class="meta">
 Generated 29 September 2026 from the shipped checkpoint <code>decoder_best.pth</code> (Depth Anything

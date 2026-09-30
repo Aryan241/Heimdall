@@ -1,0 +1,51 @@
+{
+ "note": "Both checkpoints over the SAME 609-tile sample of the GAMUS test split, same script, same metric. The 'current' entry here is E1, the model shipped at the time of this run; the model shipped now is E4, measured separately in outputs/gamus_test_e4.json over a 703-tile sample. Those two figures are NOT comparable with each other.",
+ "tiles": 599,
+ "split": "test",
+ "dataset": "GAMUS",
+ "models": {
+  "da3_metric_l_affine_epoch77": {
+   "n": 30450000,
+   "rmse": 7.688555256220969,
+   "mae": 4.149593923604747,
+   "bias": -2.934273979488863,
+   "median_abs": 1.5174254328012466,
+   "nmad": 2.253839466447383,
+   "le90": 11.241709935665135,
+   "rmse_debiased": 7.106610875885754,
+   "pearson_r": 0.40621535469808207,
+   "r2": 0.01429656611161012,
+   "delta1": 0.06759838799404895,
+   "delta2": 0.14191775770204443,
+   "delta3": 0.2202102031921288,
+   "samples": 609
+  },
+  "predict_zero": {
+   "n": 30450000,
+   "rmse": 9.074996827021058,
+   "mae": 4.776391170127303,
+   "bias": -4.731205166382913,
+   "median_abs": 0.6614160537719727,
+   "nmad": 0.7652438319593667,
+   "le90": 14.24940013885498,
+   "rmse_debiased": 7.74411163943508,
+   "samples": 609
+  },
+  "da2_base_multiscale_e1_shipped_at_the_time": {
+   "n": 30450000,
+   "rmse": 5.0374637005241105,
+   "mae": 2.5389539807493473,
+   "bias": -1.1583890210470962,
+   "median_abs": 0.7119624614715576,
+   "nmad": 1.0058438173681497,
+   "le90": 7.514262872934344,
+   "rmse_debiased": 4.902466257917092,
+   "pearson_r": 0.7811018795308422,
+   "r2": 0.5768633444943967,
+   "delta1": 0.27730997328828944,
+   "delta2": 0.46392142348858006,
+   "delta3": 0.6007035405834802,
+   "samples": 609
+  }
+ }
+}

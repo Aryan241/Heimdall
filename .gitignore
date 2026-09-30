@@ -51,10 +51,28 @@ ehthumbs.db
 node_modules/
 
 # === Shipped artefacts (exceptions to the rules above) ===
-# Trained decoder head used by default (5 MB) — the repo must run out of the box.
+# The trained head the pipeline loads by default, so a clone runs out of the box.
 !checkpoints/decoder/
 checkpoints/decoder/*
-!checkpoints/decoder/decoder_best_all.pth
+!checkpoints/decoder/decoder_best.pth
+
+# The measured results every number in the documentation is read from. These are small JSON
+# and Markdown; the rasters and meshes they were computed from stay out of the repository.
+!outputs/
+outputs/*
+!outputs/benchmark_ahn/
+outputs/benchmark_ahn/*
+!outputs/benchmark_ahn/results.json
+!outputs/benchmark_ahn/results.md
+!outputs/benchmark_gsd/
+outputs/benchmark_gsd/*
+!outputs/benchmark_gsd/results.json
+!outputs/benchmark_gsd/results.md
+!outputs/gamus_test.json
+!outputs/gamus_architecture_comparison.json
+!outputs/legacy_docs/
+!outputs/legacy_docs/*.md
+
 # Bundled demo scene for the web viewer.
 !heimdall-web/public/demo/*.tif
 # Test / pipeline caches

@@ -1,45 +1,95 @@
 {
-  "dataset": "GAMUS",
-  "split": "test",
-  "note": "Produced by the Kaggle training run of 2026-09-27 (eval.py on a held-out 500-tile random subset of the 2861-tile GAMUS test split). Per-tile records omitted here; the full record is in the Kaggle notebook output.",
-  "tiles": 500,
-  "weights": "checkpoints/decoder/decoder_best.pth (decoder_best_kaggle.pth, vit-b + multiscale, epoch 25)",
-  "backbone": "vit-b",
-  "tta": false,
-  "refine": false,
-  "pixel_classes": "ground-truth labels",
-  "overall": {"n": 100000000, "rmse": 5.419118754321409, "mae": 2.457491341765708, "bias": -1.4758204484960071,
-              "median_abs": 0.6381964683532715, "nmad": 0.9430580957653931, "le90": 7.054929733276367,
-              "rmse_debiased": 5.21428826180899, "pearson_r": 0.751381963556733, "r2": 0.47925678401896676,
-              "delta1": 0.24515663018762246, "delta2": 0.43621045789073676, "delta3": 0.5777069317284861, "samples": 500},
-  "by_landscape": {
-    "forested": {"n": 200000, "rmse": 4.5532085406188125, "mae": 2.7017910748500173, "bias": -1.1784593301041346, "nmad": 1.7688455958634615, "pearson_r": 0.6289373574250722, "samples": 1},
-    "mixed":    {"n": 5000000, "rmse": 2.165729069317389, "mae": 0.6975183790272225, "bias": -0.19284185985207675, "nmad": 0.10997348874416202, "pearson_r": 0.679258843670592, "samples": 25},
-    "sparse":   {"n": 6000000, "rmse": 1.1348694711806167, "mae": 0.362870228043869, "bias": 0.1504377513101984, "nmad": 0.04038955149538815, "pearson_r": 0.3665026111806453, "samples": 30},
-    "urban":    {"n": 88800000, "rmse": 5.716026723399863, "mae": 2.6975671475022818, "bias": -1.6586122769389633, "nmad": 1.2001980865035204, "pearson_r": 0.7422137927447753, "samples": 444}
+ "dataset": "GAMUS",
+ "split": "test",
+ "tiles": 703,
+ "note": "The shipped head (E4) over a 703-tile random sample of the 2 861-tile GAMUS test split. Each tile is scored on its centre 512x512 crop at native 0.33 m GSD, which is the evaluation path scripts/eval_gamus.py uses. Reproduce with python scripts/eval_gamus.py --data <gamus dir> --split test --weights <ckpt>.",
+ "weights": "checkpoints/decoder/decoder_best.pth (E4, vit-b + multiscale, epoch 29)",
+ "backbone": "vit-b",
+ "tta": false,
+ "overall": {
+  "n": 35150000,
+  "rmse": 4.744839854468617,
+  "mae": 2.30838420260348,
+  "bias": -0.9812579611708171,
+  "median_abs": 0.6272006034851074,
+  "nmad": 0.8900975808385759,
+  "le90": 6.748131430149079,
+  "rmse_debiased": 4.642266478584858,
+  "pearson_r": 0.7828182529726511,
+  "r2": 0.5857025174913626,
+  "delta1": 0.2962062877281481,
+  "delta2": 0.49156395756779686,
+  "delta3": 0.6230618085555286,
+  "samples": 703
+ },
+ "baselines": {
+  "predict_zero": {
+   "n": 35150000,
+   "rmse": 8.586389855862151,
+   "mae": 4.441948928970168,
+   "bias": -4.402804865982495,
+   "median_abs": 0.491163045167923,
+   "nmad": 0.5494300861626863,
+   "le90": 13.099325275421172,
+   "rmse_debiased": 7.37166196111388,
+   "samples": 703
+  }
+ },
+ "by_pixel_class": {
+  "building": {
+   "n": 69189424,
+   "rmse": 7.271390290273929,
+   "mae": 3.539144283986022,
+   "bias": -2.4747343586660966,
+   "nmad": 2.576766098642349,
+   "pearson_r": 0.6160833017721984,
+   "samples": 443
   },
-  "by_pixel_class": {
-    "building":       {"n": 69189424, "rmse": 7.271390290273929, "mae": 3.539144283986022, "bias": -2.4747343586660966, "nmad": 2.576766098642349, "pearson_r": 0.6160833017721984, "samples": 443},
-    "ground":         {"n": 82685984, "rmse": 2.238571575507536, "mae": 0.80003356466259, "bias": -0.061371335676985425, "nmad": 0.15089138283915818, "pearson_r": 0.60663154423246, "samples": 488},
-    "low_vegetation": {"n": 65322047, "rmse": 1.7120038229512715, "mae": 0.7505739037984198, "bias": 0.35637620269355436, "nmad": 0.25277655214481054, "pearson_r": 0.2736985855191146, "samples": 497},
-    "road":           {"n": 66656355, "rmse": 2.340945898380209, "mae": 0.864260690273369, "bias": -0.22993514530798156, "nmad": 0.13609678622391075, "pearson_r": 0.6711588505390806, "samples": 472},
-    "tree":           {"n": 60428769, "rmse": 6.851537950185237, "mae": 5.009419182331031, "bias": -3.978941140396807, "nmad": 4.733380060458183, "pearson_r": 0.6253920014276199, "samples": 489},
-    "water":          {"n": 6853449, "rmse": 2.31490070142298, "mae": 1.1172033211270198, "bias": 0.9068934917444518, "nmad": 0.12340704336315393, "pearson_r": 0.06488083360678956, "samples": 84}
+  "ground": {
+   "n": 82685984,
+   "rmse": 2.238571575507536,
+   "mae": 0.80003356466259,
+   "bias": -0.061371335676985425,
+   "nmad": 0.15089138283915818,
+   "pearson_r": 0.60663154423246,
+   "samples": 488
   },
-  "by_city": {
-    "DC":  {"n": 13000000, "rmse": 6.453243125782945, "mae": 4.128620027352906, "bias": -2.432332612058518, "nmad": 3.2127727197647094, "pearson_r": 0.8251769730511737, "samples": 65},
-    "NYC": {"n": 30400000, "rmse": 5.884568948255191, "mae": 3.2277263671391427, "bias": -2.2562386269726593, "nmad": 1.2539112812407314, "pearson_r": 0.6821491874153285, "samples": 152},
-    "PHL": {"n": 56600000, "rmse": 4.870427975716558, "mae": 1.6599680611299144, "bias": -0.8369623080012427, "nmad": 0.5676937211813405, "pearson_r": 0.7390506882916495, "samples": 283}
+  "low_vegetation": {
+   "n": 65322047,
+   "rmse": 1.7120038229512715,
+   "mae": 0.7505739037984198,
+   "bias": 0.35637620269355436,
+   "nmad": 0.25277655214481054,
+   "pearson_r": 0.2736985855191146,
+   "samples": 497
   },
-  "baselines": {
-    "predict_zero": {"n": 100000000, "rmse": 8.666092595479679, "mae": 4.3891817576718255, "bias": -4.325165310645056,
-                     "nmad": 0.5027121062418446, "le90": 12.91132640838623, "samples": 500}
+  "road": {
+   "n": 66656355,
+   "rmse": 2.340945898380209,
+   "mae": 0.864260690273369,
+   "bias": -0.22993514530798156,
+   "nmad": 0.13609678622391075,
+   "pearson_r": 0.6711588505390806,
+   "samples": 472
   },
-  "training": {
-    "run": "Kaggle T4, 2026-09-27, 30 epochs, ~4.7 h",
-    "datasets": "GAMUS train+val, AHN 0.33 m, AHN 1.0 m",
-    "best_epoch": 25,
-    "val_rmse": 3.8503754247302635, "val_mae": 1.9336578681224135, "val_pearson_r": 0.7920767892708477
+  "tree": {
+   "n": 60428769,
+   "rmse": 6.851537950185237,
+   "mae": 5.009419182331031,
+   "bias": -3.978941140396807,
+   "nmad": 4.733380060458183,
+   "pearson_r": 0.6253920014276199,
+   "samples": 489
   },
-  "seconds": 1424.6
+  "water": {
+   "n": 6853449,
+   "rmse": 2.31490070142298,
+   "mae": 1.1172033211270198,
+   "bias": 0.9068934917444518,
+   "nmad": 0.12340704336315393,
+   "pearson_r": 0.06488083360678956,
+   "samples": 84
+  }
+ },
+ "by_pixel_class_note": "Per-class figures are from the epoch-25 predecessor; the E4 run did not recompute them. The eight-site LiDAR benchmark in outputs/benchmark_ahn/results.json carries current per-class numbers."
 }

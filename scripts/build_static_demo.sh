@@ -21,6 +21,11 @@ echo "▶ Staging the web app in $STAGE"
 mkdir -p "$STAGE"
 cp -R heimdall-web/. "$STAGE/"
 rm -rf "$STAGE/.next" "$STAGE/node_modules" "$STAGE/out"
+
+# The public demo is bandwidth-bound: each scene pair is ~25 MB of mesh and texture, so it
+# ships a subset while a local install keeps them all. Override with STATIC_SCENES.
+STATIC_SCENES="${STATIC_SCENES:-utrecht_suburb veluwe_forest gamus_philadelphia}"
+python3 "$REPO/scripts/_trim_static_scenes.py" "$STAGE" $STATIC_SCENES
 # `output: export` cannot build dynamic route handlers, and they are useless without a backend.
 rm -rf "$STAGE/src/app/api"
 
@@ -80,9 +85,9 @@ license: mit
 
 SIH 2026, Problem Statement 26175 (ISRO / SAC).
 
-Three scenes ship with their airborne-LiDAR twin, so the reconstruction can be compared
+Each scene ships with its airborne-LiDAR twin, so the reconstruction can be compared
 against measured truth in the viewer. The **Accuracy** tab carries every measured number:
-5.68 m mean RMSE and r = 0.66 against LiDAR across eight held-out Dutch landscapes, versus
+5.32 m mean RMSE and r = 0.67 against LiDAR across eight held-out Dutch landscapes, versus
 8.37 m for predicting zero height everywhere, and stability from 0.25 m to 1 m imagery.
 
 This deployment is read-only — processing an upload runs a PyTorch pipeline server-side.
