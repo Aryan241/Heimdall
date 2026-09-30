@@ -13,7 +13,7 @@ Heimdall converts a **single optical RGB remote-sensing image** into an elevatio
 * **Live demo**: <https://yann-n-heimdall.static.hf.space> — three scenes, each shipped beside its airborne-LiDAR twin, plus every measured accuracy figure in the Accuracy tab.
 * **Visualisation**: a web platform (Next.js + React Three Fiber) with upload, live progress, a UV-textured terrain mesh, orbit and first-person flight, true-metre height/slope readouts, distance and profile measurement, water-level simulation, and built-in **validation against reference DSM / LiDAR rasters**.
 
-The height model is a frozen **Depth Anything V2 Base** backbone plus a trained **multi-scale decoder** that consumes the DPT feature pyramid and predicts per-pixel scale and shift fields mapping backbone depth to metric height above ground. Trained on 7 804 tiles (GAMUS + Dutch AHN LiDAR at two ground resolutions); scored against airborne LiDAR at eight held-out Dutch sites at **5.50 m RMSE / r = 0.66**, versus 8.37 m for predicting zero and 7.44 m for the previous checkpoint (§4.4).
+The height model is a frozen **Depth Anything V2 Base** backbone plus a trained **multi-scale decoder** that consumes the DPT feature pyramid and predicts per-pixel scale and shift fields mapping backbone depth to metric height above ground. Trained on 16 004 tiles (GAMUS + Dutch AHN LiDAR at two ground resolutions); scored against airborne LiDAR at eight held-out Dutch sites at **5.32 m RMSE / r = 0.67**, versus 8.37 m for predicting zero and 7.44 m for the previous checkpoint (§4.4).
 
 ---
 
@@ -181,22 +181,22 @@ AHN tiles used for training (`scripts/build_ahn_dataset.py`). 400 m sites, 0.25 
 
 | Site | Landscape | RMSE (m) | MAE (m) | Bias (m) | r | Predict-zero RMSE (m) |
 |---|---|---|---|---|---|---|
-| amsterdam_centre | dense historic urban | 8.20 | 5.55 | −5.04 | 0.86 | 13.32 |
-| rotterdam_centre | high-rise urban | 16.69 | 8.75 | −6.18 | 0.60 | 22.92 |
-| utrecht_suburb | suburban residential | 2.29 | 1.44 | −0.50 | 0.79 | 4.75 |
-| rotterdam_port | industrial | 7.37 | 4.66 | −4.15 | 0.84 | 11.01 |
-| westland_greenhouses | greenhouses | 2.38 | 1.77 | −0.22 | 0.58 | 3.90 |
-| veluwe_forest | forest | 2.22 | 1.12 | −0.12 | 0.79 | 4.25 |
-| flevoland_farmland | sparse rural | 1.59 | 0.28 | +0.08 | 0.07 | 1.43 |
-| valkenburg_hills | hilly town | 3.27 | 1.81 | −0.64 | 0.70 | 5.38 |
-| **mean** | | **5.50** | **3.17** | — | **0.656** | **8.37** |
+| amsterdam_centre | dense historic urban | 7.05 | 4.69 | −4.08 | 0.88 | 13.32 |
+| rotterdam_centre | high-rise urban | 15.81 | 8.25 | −5.25 | 0.64 | 22.92 |
+| utrecht_suburb | suburban residential | 2.35 | 1.43 | −0.66 | 0.78 | 4.75 |
+| rotterdam_port | industrial | 8.08 | 5.03 | −4.66 | 0.82 | 11.01 |
+| westland_greenhouses | greenhouses | 2.24 | 1.73 | −0.74 | 0.64 | 3.90 |
+| veluwe_forest | forest | 2.24 | 1.13 | −0.25 | 0.79 | 4.25 |
+| flevoland_farmland | sparse rural | 1.56 | 0.31 | +0.12 | 0.07 | 1.43 |
+| valkenburg_hills | hilly town | 3.21 | 1.76 | −0.77 | 0.73 | 5.38 |
+| **mean** | | **5.32** | **3.04** | — | **0.668** | **8.37** |
 
 **Against the previous (shipped) head**, same sites, same script:
 
 | | mean RMSE | mean MAE | mean r |
 |---|---|---|---|
 | Shipped head (DA3-metric backbone) | 7.44 m | 4.63 m | 0.377 |
-| **Retrained head (DA2 + multiscale decoder, height-weighted loss)** | **5.50 m** | **3.17 m** | **0.656** |
+| **Retrained head (DA2 + multiscale decoder, height-weighted loss, 11 000 AHN tiles)** | **5.32 m** | **3.04 m** | **0.668** |
 | Predict 0 m everywhere | 8.37 m | — | — |
 
 Seven of the eight sites improved; the greenhouses are unchanged (2.20 → 2.22 m), which is
@@ -236,7 +236,7 @@ distances (`scripts/benchmark_ahn.py --gsd 0.5 1.0 2.0`):
 
 | Sensor GSD | mean RMSE | mean MAE | mean r | vs 0.25 m |
 |---|---|---|---|---|
-| 0.25 m (aerial) | 5.50 m | 3.17 m | 0.656 | — |
+| 0.25 m (aerial) | 5.32 m | 3.04 m | 0.668 | — |
 | 0.5 m | 5.77 m | 3.31 m | 0.652 | +1.6% |
 | 1 m | 5.94 m | 3.40 m | 0.634 | +4.6% |
 | 2 m | 6.57 m | 3.88 m | 0.658 | +15.7% |
@@ -465,7 +465,7 @@ download; a smaller scene takes 11–26 s. CUDA GPUs are faster.
 
 **Q8. Known weaknesses?**
 * **Tall buildings are under-predicted** — Rotterdam's high-rise core scores 16.94 m RMSE with
-  a −6.18 m bias, against 5.50 m across the benchmark as a whole. A single nadir view carries no
+  a −5.25 m bias, against 5.32 m across the benchmark as a whole. A single nadir view carries no
   parallax, so the height of a tower is inferred from shadow and faint perspective cues that
   orthorectification has deliberately removed. This is close to a limit of the input, not a bug.
 * **Tree canopy** is the worst surface class (6.85 m RMSE, −3.98 m bias): canopy height varies

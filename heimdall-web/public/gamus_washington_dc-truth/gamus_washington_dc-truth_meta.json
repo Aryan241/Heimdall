@@ -1,0 +1,149 @@
+{
+  "version": 2,
+  "input": "AHN airborne LiDAR",
+  "kind": "plain",
+  "product": "relative_dsm",
+  "product_description": "Reference surface measured by airborne LiDAR (AHN, 0.5 m), resampled to the model's working grid.",
+  "units": "m",
+  "mode": "reference",
+  "model": null,
+  "weights": null,
+  "native_shape": [
+    1024,
+    1024
+  ],
+  "working_shape": [
+    1024,
+    1024
+  ],
+  "gsd": {
+    "source": "user",
+    "native_m": 0.33,
+    "working_m": 0.33
+  },
+  "crs_epsg": null,
+  "crs_wkt": null,
+  "working_transform": null,
+  "center_latlon": null,
+  "bounds": null,
+  "calibration": {
+    "refinement": {
+      "method": "segment-wise planar regularisation",
+      "segments": 789,
+      "built_surfaces": 398,
+      "pitched": 98,
+      "vegetation_objects": 11,
+      "bimodal_splits": 260,
+      "merged_pairs": 70,
+      "vehicles": 60,
+      "segments_grounded_by_vehicles": 27
+    }
+  },
+  "stats": {
+    "surface": {
+      "min": 0.0,
+      "max": 31.429000854492188,
+      "mean": 3.845791816711426,
+      "p2": 0.0,
+      "p98": 20.115999221801758
+    },
+    "ndsm": {
+      "min": 0.0,
+      "max": 31.429000854492188,
+      "mean": 3.845791816711426,
+      "p2": 0.0,
+      "p98": 20.115999221801758
+    },
+    "dtm": {
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "p2": 0.0,
+      "p98": 0.0
+    }
+  },
+  "height_png_scale": {
+    "offset_m": 0.0,
+    "scale_m": 0.0004795758122299868
+  },
+  "mesh": {
+    "grid_shape": [
+      512,
+      512
+    ],
+    "width_m": 337.92,
+    "depth_m": 337.92,
+    "height_offset": 0.0467965267598629,
+    "grid_layers": [
+      "surface",
+      "ndsm",
+      "dtm",
+      "slope_deg"
+    ],
+    "z_scale": 1.0,
+    "vertices": 262144,
+    "faces": 522242
+  },
+  "files": {
+    "preview": "gamus_washington_dc-truth_preview.png",
+    "texture": "gamus_washington_dc-truth_texture.jpg",
+    "mesh": "gamus_washington_dc-truth_mesh.glb",
+    "grid": "gamus_washington_dc-truth_grid.bin",
+    "meta": "gamus_washington_dc-truth_meta.json"
+  },
+  "warnings": [],
+  "timings_s": {
+    "ingest": 0.07,
+    "depth": 8.93,
+    "calibration": 0.0,
+    "outputs": 0.47,
+    "mesh": 0.45,
+    "total": 9.95
+  },
+  "config": {
+    "input": "/private/tmp/claude-501/-Users-aryanachary--gemini-antigravity-ide-scratch-Heimdall/cf114bab-ec25-49b6-be7b-c181bc0ad9c7/scratchpad/GAMUS_test/images/test/DC_09_29_RGB.jpg",
+    "output_dir": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall-web/public/gamus_washington_dc",
+    "name": "gamus_washington_dc",
+    "weights": "decoder_best.pth",
+    "model_key": null,
+    "device": null,
+    "reference_dem": null,
+    "auto_dem": true,
+    "gcps": null,
+    "gsd": 0.33,
+    "target_gsd": null,
+    "max_side": 8192,
+    "tile_size": 512,
+    "overlap": 128,
+    "tta": false,
+    "refine": true,
+    "band_order": null,
+    "export_mesh": true,
+    "mesh_grid": 512,
+    "texture_side": 4096,
+    "max_height": null,
+    "use_segmentation": false,
+    "dtm_opening_cells": 3,
+    "events": true
+  },
+  "is_reference": true,
+  "comparison": {
+    "site": "gamus_washington_dc",
+    "landscape": "US urban (GAMUS)",
+    "extent_m": 338,
+    "reference": "GAMUS LiDAR-derived nDSM, height above ground",
+    "held_out": true,
+    "metrics": {
+      "rmse": 4.081457446393112,
+      "mae": 2.423041157526007,
+      "bias": 0.09920616125422532,
+      "nmad": 1.060068549245596,
+      "le90": 6.933160781860352,
+      "pearson_r": 0.7751326809350633,
+      "r2": 0.5765664540499807
+    },
+    "predict_zero_rmse": 7.357384389033977,
+    "truth_scene": "gamus_washington_dc-truth",
+    "model_scene": "gamus_washington_dc"
+  }
+}

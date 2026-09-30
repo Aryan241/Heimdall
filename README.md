@@ -30,7 +30,7 @@ image ─► ingest (bands, 16-bit stretch, nodata, CRS)
 ```
 
 * **Backbone**: Depth Anything V2 Base, frozen (Hugging Face), chosen by measured correlation with LiDAR height (median r 0.56 at 1.6 s/tile). Depth Anything V3's *monocular* model matches it (0.58) but is ~3× slower; V3's *metric* model scores 0.06 because metric depth assumes a perspective camera that an orthomosaic doesn't have. Selectable: `--model vit-s|vit-b|vit-l|da3-mono-l|da3-l|da3-metric-l` (a head is fitted to one backbone, so switching needs retraining).
-* **Head**: a multi-scale decoder (`heimdall/decoder/multiscale_head.py`, 1.72 M parameters) that consumes the backbone's DPT feature pyramid and predicts per-pixel scale and shift of the backbone depth → metric height above ground. Trained on 7 804 tiles — **GAMUS** (0.33 m RGB + nDSM) plus Dutch AHN LiDAR at 0.33 m and 1 m, with a further 1 139 held out for validation — with SILog + multi-scale gradient-matching + L1 loss (`scripts/train_decoder.py`). Checkpoint: `checkpoints/decoder/decoder_best.pth`.
+* **Head**: a multi-scale decoder (`heimdall/decoder/multiscale_head.py`, 1.72 M parameters) that consumes the backbone's DPT feature pyramid and predicts per-pixel scale and shift of the backbone depth → metric height above ground. Trained on 16 004 tiles — **GAMUS** (0.33 m RGB + nDSM) plus Dutch AHN LiDAR at 0.33 m and 1 m, with a further 1 139 held out for validation — with SILog + multi-scale gradient-matching + L1 + a height-weighted term (`w = 1 + h/10`) (`scripts/train_decoder.py`). Checkpoint: `checkpoints/decoder/decoder_best.pth`.
 * **Why resample to 0.33 m**: the head learned heights at the GAMUS ground sample distance; running it at another GSD changes the apparent size of every object. Up-sampling is capped at 3× for coarse imagery.
 * **Absolute scale**: the coarse DEM is reprojected onto the image grid (any CRS), filtered with a morphological opening to suppress buildings/canopy that leak into 30 m radar DEMs, and smoothly up-sampled. GCPs (CSV) remove the residual offset or tilt.
 * **Backbone-only mode** (`--weights none`): relative height from DA3 (depth sign-corrected), RANSAC-calibrated to a DEM when the DEM can actually constrain it (enough cells and relief), otherwise output as a unitless rDSM.
@@ -120,8 +120,8 @@ Outputs (`<name>_*`): `dsm.tif` / `rdsm.tif`, `ndsm.tif`, `dtm.tif`, `height16.p
 ## Validation and benchmarking
 
 > **Measured accuracy.** Against airborne LiDAR over 8 held-out Dutch landscapes
-> (`scripts/benchmark_ahn.py`): **5.68 m** mean nDSM RMSE, **r = 0.66**, versus 8.37 m for
-> predicting zero everywhere. On the held-out GAMUS test split: **5.42 m** RMSE, **2.46 m**
+> (`scripts/benchmark_ahn.py`): **5.32 m** mean nDSM RMSE, **r = 0.67**, versus 8.37 m for
+> predicting zero everywhere. On a 703-tile sample of the held-out GAMUS test split: **4.74 m** RMSE, **2.31 m**
 > MAE, **r = 0.75**, versus an 8.67 m predict-zero baseline. Training recipe and the full
 > breakdown: [docs/TRAINING.md](docs/TRAINING.md).
 
@@ -190,6 +190,6 @@ and Copernicus: [docs/LICENSING.md](docs/LICENSING.md).
 
 ## Known limitations
 
-* Tall buildings and tree canopy are **under-predicted** (Rotterdam high-rise: 16.9 m RMSE, −6.6 m bias; GAMUS tree pixels: 6.9 m RMSE, −4.0 m bias). A single nadir view carries no parallax, so absolute height for tall structures is inferred rather than measured. Always re-measure with `scripts/benchmark_ahn.py` / `eval.py` / `validate.py` before quoting numbers.
+* Tall buildings and tree canopy are **under-predicted** (Rotterdam high-rise: 15.8 m RMSE, -5.2 m bias; GAMUS tree pixels: 6.9 m RMSE, −4.0 m bias). A single nadir view carries no parallax, so absolute height for tall structures is inferred rather than measured. Always re-measure with `scripts/benchmark_ahn.py` / `eval.py` / `validate.py` before quoting numbers.
 * Absolute accuracy of the terrain datum is bounded by the coarse DEM (Copernicus GLO-30 is EGM2008-referenced; reference LiDAR is often ellipsoidal, which is why the validator reports an offset-removed score).
 * Automatic DEM download needs internet access; offline, supply `--reference-dem` or GCPs.

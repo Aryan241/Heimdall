@@ -1,0 +1,149 @@
+{
+  "version": 2,
+  "input": "AHN airborne LiDAR",
+  "kind": "plain",
+  "product": "relative_dsm",
+  "product_description": "Reference surface measured by airborne LiDAR (AHN, 0.5 m), resampled to the model's working grid.",
+  "units": "m",
+  "mode": "reference",
+  "model": null,
+  "weights": null,
+  "native_shape": [
+    1024,
+    1024
+  ],
+  "working_shape": [
+    1024,
+    1024
+  ],
+  "gsd": {
+    "source": "user",
+    "native_m": 0.33,
+    "working_m": 0.33
+  },
+  "crs_epsg": null,
+  "crs_wkt": null,
+  "working_transform": null,
+  "center_latlon": null,
+  "bounds": null,
+  "calibration": {
+    "refinement": {
+      "method": "segment-wise planar regularisation",
+      "segments": 747,
+      "built_surfaces": 184,
+      "pitched": 29,
+      "vegetation_objects": 10,
+      "bimodal_splits": 177,
+      "merged_pairs": 35,
+      "vehicles": 300,
+      "segments_grounded_by_vehicles": 129
+    }
+  },
+  "stats": {
+    "surface": {
+      "min": 0.0,
+      "max": 21.48420524597168,
+      "mean": 2.029885768890381,
+      "p2": 0.0,
+      "p98": 16.118148803710938
+    },
+    "ndsm": {
+      "min": 0.0,
+      "max": 21.48420524597168,
+      "mean": 2.029885768890381,
+      "p2": 0.0,
+      "p98": 16.118148803710938
+    },
+    "dtm": {
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "p2": 0.0,
+      "p98": 0.0
+    }
+  },
+  "height_png_scale": {
+    "offset_m": 0.0,
+    "scale_m": 0.000327827958281402
+  },
+  "mesh": {
+    "grid_shape": [
+      512,
+      512
+    ],
+    "width_m": 337.92,
+    "depth_m": 337.92,
+    "height_offset": 0.0037184404209256172,
+    "grid_layers": [
+      "surface",
+      "ndsm",
+      "dtm",
+      "slope_deg"
+    ],
+    "z_scale": 1.0,
+    "vertices": 262144,
+    "faces": 522242
+  },
+  "files": {
+    "preview": "gamus_philadelphia-truth_preview.png",
+    "texture": "gamus_philadelphia-truth_texture.jpg",
+    "mesh": "gamus_philadelphia-truth_mesh.glb",
+    "grid": "gamus_philadelphia-truth_grid.bin",
+    "meta": "gamus_philadelphia-truth_meta.json"
+  },
+  "warnings": [],
+  "timings_s": {
+    "ingest": 0.08,
+    "depth": 7.74,
+    "calibration": 0.0,
+    "outputs": 0.46,
+    "mesh": 0.41,
+    "total": 8.72
+  },
+  "config": {
+    "input": "/private/tmp/claude-501/-Users-aryanachary--gemini-antigravity-ide-scratch-Heimdall/cf114bab-ec25-49b6-be7b-c181bc0ad9c7/scratchpad/GAMUS_test/images/test/PHL_5094_RGB.jpg",
+    "output_dir": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall-web/public/gamus_philadelphia",
+    "name": "gamus_philadelphia",
+    "weights": "decoder_best.pth",
+    "model_key": null,
+    "device": null,
+    "reference_dem": null,
+    "auto_dem": true,
+    "gcps": null,
+    "gsd": 0.33,
+    "target_gsd": null,
+    "max_side": 8192,
+    "tile_size": 512,
+    "overlap": 128,
+    "tta": false,
+    "refine": true,
+    "band_order": null,
+    "export_mesh": true,
+    "mesh_grid": 512,
+    "texture_side": 4096,
+    "max_height": null,
+    "use_segmentation": false,
+    "dtm_opening_cells": 3,
+    "events": true
+  },
+  "is_reference": true,
+  "comparison": {
+    "site": "gamus_philadelphia",
+    "landscape": "US urban (GAMUS)",
+    "extent_m": 338,
+    "reference": "GAMUS LiDAR-derived nDSM, height above ground",
+    "held_out": true,
+    "metrics": {
+      "rmse": 1.8493020418058397,
+      "mae": 0.9236454885185209,
+      "bias": 0.11889465552556086,
+      "nmad": 0.1759933076784673,
+      "le90": 2.5502111613750458,
+      "pearson_r": 0.9031290478410613,
+      "r2": 0.8148062589293614
+    },
+    "predict_zero_rmse": 4.75259307283414,
+    "truth_scene": "gamus_philadelphia-truth",
+    "model_scene": "gamus_philadelphia"
+  }
+}

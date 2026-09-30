@@ -48,9 +48,11 @@ interface Progress {
 /** Scenes shipped with the app. The benchmark pairs each have a LiDAR twin built by
  *  `scripts/build_demo_site.py`, so a reconstruction can be compared against measured truth. */
 const BUNDLED_SCENES: { id: string; label: string; note: string }[] = [
-  { id: 'utrecht_suburb', label: 'Utrecht — suburban', note: '2.90 m RMSE · r 0.77 vs LiDAR' },
-  { id: 'veluwe_forest', label: 'Veluwe — forest', note: '2.18 m RMSE · r 0.79 vs LiDAR' },
-  { id: 'valkenburg_hills', label: 'Valkenburg — hills', note: '2.98 m RMSE · r 0.71 vs LiDAR' },
+  { id: 'utrecht_suburb', label: 'Utrecht — suburban', note: '2.66 m RMSE · r 0.79 vs AHN LiDAR' },
+  { id: 'veluwe_forest', label: 'Veluwe — forest', note: '2.19 m RMSE · r 0.78 vs AHN LiDAR' },
+  { id: 'valkenburg_hills', label: 'Valkenburg — hills', note: '2.86 m RMSE · r 0.72 vs AHN LiDAR' },
+  { id: 'gamus_washington_dc', label: 'Washington DC — civic', note: '4.08 m RMSE · r 0.78 vs GAMUS LiDAR' },
+  { id: 'gamus_philadelphia', label: 'Philadelphia — riverside', note: '1.85 m RMSE · r 0.90 vs GAMUS LiDAR' },
 ];
 
 /** Set at build time for the public demo: there is no Python backend behind a static export,

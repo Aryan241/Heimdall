@@ -46,6 +46,20 @@ def _resample_to_grid(src_path: Path, transform, crs_wkt: str, shape: tuple[int,
     from rasterio.enums import Resampling
     from rasterio.warp import reproject
 
+    if transform is None or crs_wkt is None:
+        # A plain (ungeoreferenced) input — GAMUS ships with no CRS — so the pipeline works on
+        # the image's own pixel grid and the truth raster is already aligned to it. Resize only
+        # if the pipeline downscaled, and do it with area averaging to match how it resamples.
+        from PIL import Image
+        with rasterio.open(src_path) as s:
+            a = s.read(1).astype(np.float32)
+            if s.nodata is not None:
+                a[a == s.nodata] = np.nan
+        a[np.abs(a) > 1e30] = np.nan
+        if a.shape != tuple(shape):
+            a = np.asarray(Image.fromarray(a).resize((shape[1], shape[0]), Image.Resampling.BOX))
+        return a
+
     dst = np.full(shape, np.nan, dtype=np.float32)
     with rasterio.open(src_path) as s:
         a = s.read(1).astype(np.float32)
@@ -66,34 +80,46 @@ def build_truth_scene(model_dir: Path, out_dir: Path, ahn_ndsm: Path, stem: str)
     from heimdall.pipeline import _grid_layer
 
     meta = json.loads((model_dir / f"{model_dir.name}_meta.json").read_text())
-    transform = rasterio.transform.Affine(*meta["working_transform"])
+    wt = meta.get("working_transform")
+    transform = rasterio.transform.Affine(*wt) if wt else None
     shape = tuple(meta["working_shape"])
     crs_wkt = meta["crs_wkt"]
     gsd = meta["gsd"]["working_m"]
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    with rasterio.open(model_dir / meta["files"]["dtm"]) as s:
-        dtm = s.read(1).astype(np.float32)
-        dtm[s.read_masks(1) == 0] = np.nan
+    # An ungeoreferenced input (GAMUS) yields a relative DSM with no terrain datum, so there is
+    # no DTM to add: the reference *is* the height above ground and the two scenes share a zero
+    # ground plane. A georeferenced run adds the model's own DTM so both scenes sit on the same
+    # terrain and only the above-ground layer differs.
+    absolute = "dtm" in meta["files"]
+    if absolute:
+        with rasterio.open(model_dir / meta["files"]["dtm"]) as s:
+            dtm = s.read(1).astype(np.float32)
+            dtm[s.read_masks(1) == 0] = np.nan
+    else:
+        dtm = np.zeros(shape, dtype=np.float32)
 
     ndsm = np.clip(np.nan_to_num(_resample_to_grid(ahn_ndsm, transform, crs_wkt, shape), nan=0.0), 0, None)
     surface = dtm + ndsm
     valid = np.isfinite(surface)
 
-    tags = {"product": "absolute_dsm", "source": "AHN airborne LiDAR (reference)"}
+    src_name = "AHN airborne LiDAR (reference)" if absolute else "GAMUS LiDAR nDSM (reference)"
+    tags = {"product": "absolute_dsm" if absolute else "relative_dsm", "source": src_name}
     files = {
         "dsm": writers.save_geotiff(surface, out_dir / f"{stem}_dsm.tif", transform, crs_wkt,
                                     "Absolute DSM from AHN LiDAR", valid_mask=valid, tags=tags).name,
         "ndsm": writers.save_geotiff(ndsm, out_dir / f"{stem}_ndsm.tif", transform, crs_wkt,
                                      "Height above ground from AHN LiDAR", valid_mask=valid, tags=tags).name,
-        "dtm": writers.save_geotiff(dtm, out_dir / f"{stem}_dtm.tif", transform, crs_wkt,
-                                    "Terrain datum (shared with the model scene)", valid_mask=valid,
-                                    tags=tags).name,
     }
+    if absolute:
+        files["dtm"] = writers.save_geotiff(dtm, out_dir / f"{stem}_dtm.tif", transform, crs_wkt,
+                                            "Terrain datum (shared with the model scene)",
+                                            valid_mask=valid, tags=tags).name
     png_path, png_scale = writers.save_depth_png16(surface, out_dir / f"{stem}_height16.png")
     files["height_png"] = png_path.name
     files["preview"] = writers.save_colorized(surface, out_dir / f"{stem}_preview.png",
-                                              "Absolute DSM — AHN LiDAR (m)", gsd=gsd, units="m").name
+                                              f"{'Absolute DSM' if absolute else 'Height above ground'} — LiDAR reference (m)",
+                                              gsd=gsd, units="m").name
     # Same texture as the model scene: the imagery is identical, only the heights differ.
     shutil.copy(model_dir / meta["files"]["texture"], out_dir / f"{stem}_texture.jpg")
     files["texture"] = f"{stem}_texture.jpg"
@@ -149,6 +175,12 @@ def _stats(a: np.ndarray) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--site", default="rotterdam_centre", choices=sorted(SITES))
+    ap.add_argument("--gamus-rgb", type=Path, default=None,
+                    help="Build from a GAMUS tile instead of an AHN site: the tile's RGB image. "
+                         "GAMUS ships ungeoreferenced, so --gamus-gsd sets the scale.")
+    ap.add_argument("--gamus-truth", type=Path, default=None,
+                    help="The tile's LiDAR-derived _AGL height raster (metres above ground).")
+    ap.add_argument("--gamus-gsd", type=float, default=0.33)
     ap.add_argument("--size", type=int, default=600, help="Site extent in metres.")
     ap.add_argument("--name", default=None, help="Scene folder name (default: the site name).")
     ap.add_argument("--out", type=Path, default=REPO / "heimdall-web" / "public")
@@ -170,15 +202,26 @@ def main() -> int:
     from heimdall.eval.metrics import height_metrics
     from heimdall.pipeline import PipelineConfig, run
 
-    name = args.name or args.site
-    x0, y0, landscape = SITES[args.site]
-    log.info("Site %s (%s), %d m", args.site, landscape, args.size)
-    site = fetch_site(args.site, x0, y0, args.size, args.cache, args.layer)
+    if args.gamus_rgb:
+        if not args.gamus_truth:
+            raise SystemExit("--gamus-rgb needs --gamus-truth (the tile's _AGL raster)")
+        name = args.name or args.gamus_rgb.stem.replace("_RGB", "")
+        landscape = "US urban (GAMUS)"
+        site = {"rgb": args.gamus_rgb, "ndsm": args.gamus_truth}
+        extent = None
+        log.info("GAMUS tile %s at %.2f m GSD", name, args.gamus_gsd)
+    else:
+        name = args.name or args.site
+        x0, y0, landscape = SITES[args.site]
+        log.info("Site %s (%s), %d m", args.site, landscape, args.size)
+        site = fetch_site(args.site, x0, y0, args.size, args.cache, args.layer)
+        extent = args.size
 
     model_dir = args.out / name
-    log.info("Running the production pipeline on the orthophoto → %s", model_dir)
+    log.info("Running the production pipeline on the imagery → %s", model_dir)
     result = run(PipelineConfig(input=str(site["rgb"]), output_dir=str(model_dir), name=name,
-                                tta=args.tta, mesh_grid=args.mesh_grid))
+                                tta=args.tta, mesh_grid=args.mesh_grid,
+                                **({"gsd": args.gamus_gsd} if args.gamus_rgb else {})))
 
     truth_dir = args.out / f"{name}-truth"
     log.info("Building the LiDAR reference scene → %s", truth_dir)
@@ -192,8 +235,10 @@ def main() -> int:
     m = height_metrics(pred, ref)
     zero = height_metrics(np.zeros_like(pred), ref)
     comparison = {
-        "site": args.site, "landscape": landscape, "extent_m": args.size,
-        "reference": "AHN airborne LiDAR (0.5 m), height above ground",
+        "site": name, "landscape": landscape,
+        "extent_m": extent if extent is not None else round(int(np.shape(ref)[1]) * args.gamus_gsd),
+        "reference": ("GAMUS LiDAR-derived nDSM, height above ground" if args.gamus_rgb
+                      else "AHN airborne LiDAR (0.5 m), height above ground"),
         "held_out": True,
         "metrics": {k: m.get(k) for k in ("rmse", "mae", "bias", "nmad", "le90", "pearson_r", "r2")},
         "predict_zero_rmse": zero.get("rmse"),

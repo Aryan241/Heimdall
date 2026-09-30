@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-29",
+  "generated": "2026-09-30",
   "model": {
     "backbone": "Depth Anything V2 Base (frozen)",
     "head": "multi-scale DPT-pyramid decoder",

@@ -1,23 +1,23 @@
 | Site | Type | GSD | Variant | nDSM RMSE | nDSM MAE | Bias | r | Building MAE | Tree MAE | Ground MAE | Predict-0 RMSE | DSM RMSE (offset removed) |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| amsterdam_centre | dense historic urban | 0.25 m | refined | 8.28 | 5.59 | -5.06 | 0.85 | 9.88 | 7.93 | 0.58 | 13.32 | 8.31 |
-| amsterdam_centre | dense historic urban | 0.25 m | raw | 8.20 | 5.55 | -5.04 | 0.86 | 9.83 | 7.84 | 0.57 | 13.32 | 8.25 |
-| rotterdam_centre | high-rise urban | 0.25 m | refined | 16.73 | 8.79 | -6.20 | 0.60 | 11.63 | 16.49 | 2.26 | 22.92 | 15.60 |
-| rotterdam_centre | high-rise urban | 0.25 m | raw | 16.69 | 8.75 | -6.18 | 0.60 | 11.54 | 16.54 | 2.25 | 22.92 | 15.56 |
-| utrecht_suburb | suburban residential | 0.25 m | refined | 2.35 | 1.50 | -0.46 | 0.77 | 1.95 | 2.76 | 0.81 | 4.75 | 2.25 |
-| utrecht_suburb | suburban residential | 0.25 m | raw | 2.29 | 1.44 | -0.50 | 0.79 | 1.82 | 2.75 | 0.76 | 4.75 | 2.18 |
-| rotterdam_port | industrial | 0.25 m | refined | 7.35 | 4.65 | -4.12 | 0.84 | 10.26 | 9.87 | 0.63 | 11.01 | 6.52 |
-| rotterdam_port | industrial | 0.25 m | raw | 7.37 | 4.66 | -4.15 | 0.84 | 10.30 | 9.89 | 0.61 | 11.01 | 6.52 |
-| westland_greenhouses | greenhouses | 0.25 m | refined | 2.36 | 1.77 | -0.19 | 0.59 | 1.92 | 2.72 | 1.38 | 3.90 | 2.61 |
-| westland_greenhouses | greenhouses | 0.25 m | raw | 2.38 | 1.77 | -0.22 | 0.58 | 1.95 | 2.72 | 1.37 | 3.90 | 2.63 |
-| veluwe_forest | forest | 0.25 m | refined | 2.22 | 1.12 | -0.13 | 0.79 | 4.42 | 2.72 | 0.44 | 4.25 | 3.77 |
-| veluwe_forest | forest | 0.25 m | raw | 2.22 | 1.12 | -0.12 | 0.79 | 4.37 | 2.72 | 0.44 | 4.25 | 3.77 |
-| flevoland_farmland | sparse rural | 0.25 m | refined | 1.59 | 0.28 | 0.08 | 0.07 | 14.17 | 6.26 | 0.19 | 1.43 | 1.79 |
-| flevoland_farmland | sparse rural | 0.25 m | raw | 1.59 | 0.28 | 0.08 | 0.07 | 14.14 | 6.26 | 0.19 | 1.43 | 1.79 |
-| valkenburg_hills | hilly town | 0.25 m | refined | 3.31 | 1.84 | -0.65 | 0.69 | 2.79 | 4.08 | 0.76 | 5.38 | 4.04 |
-| valkenburg_hills | hilly town | 0.25 m | raw | 3.27 | 1.81 | -0.64 | 0.70 | 2.68 | 4.05 | 0.75 | 5.38 | 4.04 |
+| amsterdam_centre | dense historic urban | 0.25 m | refined | 7.19 | 4.76 | -4.13 | 0.86 | 8.31 | 6.76 | 0.61 | 13.32 | 7.62 |
+| amsterdam_centre | dense historic urban | 0.25 m | raw | 7.05 | 4.69 | -4.08 | 0.88 | 8.20 | 6.62 | 0.60 | 13.32 | 7.52 |
+| rotterdam_centre | high-rise urban | 0.25 m | refined | 15.87 | 8.31 | -5.27 | 0.63 | 10.82 | 15.35 | 2.43 | 22.92 | 15.07 |
+| rotterdam_centre | high-rise urban | 0.25 m | raw | 15.81 | 8.25 | -5.25 | 0.64 | 10.68 | 15.38 | 2.41 | 22.92 | 15.01 |
+| utrecht_suburb | suburban residential | 0.25 m | refined | 2.40 | 1.48 | -0.63 | 0.77 | 1.93 | 2.90 | 0.72 | 4.75 | 2.25 |
+| utrecht_suburb | suburban residential | 0.25 m | raw | 2.35 | 1.43 | -0.66 | 0.78 | 1.79 | 2.90 | 0.68 | 4.75 | 2.19 |
+| rotterdam_port | industrial | 0.25 m | refined | 8.05 | 5.03 | -4.61 | 0.82 | 11.57 | 10.08 | 0.54 | 11.01 | 7.00 |
+| rotterdam_port | industrial | 0.25 m | raw | 8.08 | 5.03 | -4.66 | 0.82 | 11.65 | 10.08 | 0.51 | 11.01 | 7.01 |
+| westland_greenhouses | greenhouses | 0.25 m | refined | 2.26 | 1.74 | -0.75 | 0.63 | 2.51 | 2.64 | 1.04 | 3.90 | 2.43 |
+| westland_greenhouses | greenhouses | 0.25 m | raw | 2.24 | 1.73 | -0.74 | 0.64 | 2.46 | 2.65 | 1.03 | 3.90 | 2.41 |
+| veluwe_forest | forest | 0.25 m | refined | 2.25 | 1.14 | -0.25 | 0.79 | 4.42 | 2.86 | 0.40 | 4.25 | 3.66 |
+| veluwe_forest | forest | 0.25 m | raw | 2.24 | 1.13 | -0.25 | 0.79 | 4.33 | 2.86 | 0.40 | 4.25 | 3.66 |
+| flevoland_farmland | sparse rural | 0.25 m | refined | 1.56 | 0.31 | 0.12 | 0.07 | 14.13 | 6.23 | 0.23 | 1.43 | 1.80 |
+| flevoland_farmland | sparse rural | 0.25 m | raw | 1.56 | 0.31 | 0.12 | 0.07 | 14.10 | 6.23 | 0.23 | 1.43 | 1.80 |
+| valkenburg_hills | hilly town | 0.25 m | refined | 3.25 | 1.78 | -0.78 | 0.72 | 2.61 | 4.11 | 0.68 | 5.38 | 3.97 |
+| valkenburg_hills | hilly town | 0.25 m | raw | 3.21 | 1.76 | -0.77 | 0.73 | 2.47 | 4.08 | 0.67 | 5.38 | 3.96 |
 
 | GSD | Variant | mean nDSM RMSE | mean nDSM MAE | mean r | mean predict-0 RMSE |
 |---|---|---|---|---|---|
-| 0.25 m | raw | 5.50 | 3.17 | 0.656 | 8.37 |
-| 0.25 m | refined | 5.52 | 3.19 | 0.650 | 8.37 |
+| 0.25 m | raw | 5.32 | 3.04 | 0.668 | 8.37 |
+| 0.25 m | refined | 5.35 | 3.07 | 0.659 | 8.37 |
