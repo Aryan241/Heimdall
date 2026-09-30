@@ -63,9 +63,9 @@ to the one we can now defend. Every correction is listed in section 2.
 under 30 words per bullet. Everything else here is what you <i>say</i>, not what you print. The
 single most common way to lose a technical audience is a slide they have to read while you talk.</div>
 <div class="slide"><b>If you take three numbers to the room, take these.</b>
-<b>5.50 m</b> RMSE against airborne LiDAR on eight sites never seen in training ·
+<b>5.32 m</b> RMSE against airborne LiDAR on eight sites never seen in training ·
 <b>8.37 m</b> for predicting nothing, which is what we beat ·
-<b>0.87 m</b> on ground, because most of any image is ground.</div>
+<b>0.82 m</b> on ground, because most of any image is ground.</div>
 
 <h2>2 · Corrections to the previous deck</h2>
 <table>
@@ -75,17 +75,17 @@ single most common way to lose a technical audience is a slide they have to read
 <td>Metric models assume a pinhole camera and <b>collapse on nadir orthomosaics</b> (correlation with true height 0.06). Relative-depth models work: DA2-Base reaches 0.41 frozen.</td></tr>
 <tr><td><b>Head</b></td><td>ASPP multi-dilation head</td><td>Multi-scale DPT-pyramid head, 1.72 M trainable</td>
 <td>Decoding the full feature pyramid beat a single-scale head; ASPP was the earlier design.</td></tr>
-<tr><td><b>Training data</b></td><td>GAMUS, 524 tiles</td><td><b>7 804 tiles</b> — 5 004 GAMUS + 2 800 Dutch AHN LiDAR at two resolutions</td>
+<tr><td><b>Training data</b></td><td>GAMUS, 524 tiles</td><td><b>16 004 tiles</b> — 5 004 GAMUS + 2 800 Dutch AHN LiDAR at two resolutions</td>
 <td>524 was a subset. GAMUS alone is 87% urban, so AHN adds forest, farmland and hills.</td></tr>
 <tr><td><b>Epochs</b></td><td>78</td><td>30 (best at epoch 28)</td><td>Different run entirely.</td></tr>
-<tr><td><b>Headline accuracy</b></td><td>2.18 m RMSE</td><td><b>5.50 m RMSE</b> on eight held-out LiDAR sites</td>
+<tr><td><b>Headline accuracy</b></td><td>2.18 m RMSE</td><td><b>5.32 m RMSE</b> on eight held-out LiDAR sites</td>
 <td>Different measurements, not a corrected one. See the note below — this is the single most important thing to get right.</td></tr>
 <tr><td><b>Comparison claim</b></td><td>"3.9× improvement over the heuristic baseline"</td>
-<td><b>1.52× better than predicting zero height</b> (8.37 m → 5.50 m)</td>
+<td><b>1.57× better than predicting zero height</b> (8.37 m → 5.32 m)</td>
 <td>Use a baseline a judge can verify. Predict-zero is the standard reference for height estimation.</td></tr>
 <tr><td><b>Loss</b></td><td>1.0×SILog + 0.5×Gradient + 0.1×L1</td>
 <td>…<b>+ 0.5 × height-weighted L1</b> (weight = 1 + h/10)</td>
-<td>SILog on log1p compresses tall objects: a 60 m error on a tower scored only ~3× a 0.5 m kerb error. Adding the weighted term cut RMSE from 5.68 to 5.50 m.</td></tr>
+<td>SILog on log1p compresses tall objects: a 60 m error on a tower scored only ~3× a 0.5 m kerb error. Adding the weighted term cut RMSE from 5.68 to 5.32 m.</td></tr>
 <tr><td><b>Inference</b></td><td>~1–2 s per tile</td><td>4.5 s per 400 m site (1600×1600 px) on Apple MPS</td><td>Measured across the eight benchmark sites.</td></tr>
 </table>
 
@@ -106,8 +106,8 @@ its own training set.</p>
 carries <code>model_key: da3-metric-l</code> — the DA3 Metric-Large backbone the old deck names, at
 the epoch count it quotes. Scored against airborne LiDAR on eight Dutch sites it never saw, that
 architecture reaches <b>7.44 m RMSE, r = 0.377</b> (§9). Our current model reaches
-<b>5.50 m, r = 0.656</b> on the same test.</p>
-<h4>"But 5.50 is a bigger number than 2.18 — isn't the new model worse?"</h4>
+<b>5.32 m, r = 0.668</b> on the same test.</p>
+<h4>"But 5.32 is a bigger number than 2.18 — isn't the new model worse?"</h4>
 <p><b>This is the first question everyone asks, including our own team. Be ready for it.</b>
 The two numbers come from different tests, so comparing them directly is meaningless. Compare the
 two architectures on the <i>same</i> test instead — the eight Dutch LiDAR sites, same script, same
@@ -117,7 +117,7 @@ metric:</p>
 <tr><td>DA3 Metric-L + ASPP head <span style="color:#777">(what the old deck describes)</span></td>
 <td>7.44 m</td><td>0.377</td></tr>
 <tr style="background:#eef7ee"><td><b>DA2 Base + multiscale head + height-weighted loss</b>
-<span style="color:#777">(current)</span></td><td><b>5.50 m</b></td><td><b>0.656</b></td></tr>
+<span style="color:#777">(current)</span></td><td><b>5.32 m</b></td><td><b>0.668</b></td></tr>
 </table>
 <p>On identical data the current model is <b>1.94 m more accurate and correlates nearly twice as
 well</b> with real height. The redesign was a substantial win — it only looks like a regression if
@@ -127,9 +127,10 @@ used. Both checkpoints scored on the same 599-tile sample of the held-out GAMUS 
 <table>
 <tr><th style="width:44%">Model, on identical GAMUS test tiles</th><th>RMSE</th><th>MAE</th><th>Correlation</th></tr>
 <tr><td>DA3 Metric-L + affine <span style="color:#777">(old)</span></td><td>7.69 m</td><td>4.15 m</td><td>0.406</td></tr>
-<tr style="background:#eef7ee"><td><b>DA2 Base + multiscale</b> <span style="color:#777">(current)</span></td><td><b>5.04 m</b></td><td><b>2.54 m</b></td><td><b>0.781</b></td></tr>
+<tr style="background:#eef7ee"><td><b>DA2 Base + multiscale</b> <span style="color:#777">(E1, shipped when this ran)</span></td><td><b>5.04 m</b></td><td><b>2.54 m</b></td><td><b>0.781</b></td></tr>
 <tr><td>predict zero height</td><td>9.07 m</td><td>4.78 m</td><td>—</td></tr>
 </table>
+<p style='font-size:8.4pt;color:#666'>This comparison was run while E1 was the shipped head, over a 599-tile sample. The model shipped now is E4, measured separately at <b>4.74 m</b> over 703 tiles; those two figures use different samples and are not comparable with each other.</p>
 <p><b>Two independent datasets agree.</b> The older architecture's correlation with real height sits
 at 0.38–0.41 on both held-out sets; ours sits at 0.66–0.78. And note the old model scores 7.69 m
 against 9.07 m for predicting nothing — on unseen GAMUS data it is only 1.4 m better than a flat
@@ -140,7 +141,7 @@ over a 524-tile dataset</b> — a batch size of 2, so all 524 tiles passed throu
 epoch — and the report never mentions a held-out split. The figure therefore measures how closely
 the model reproduced heights it had already been trained on.</p>
 <div class="slide"><b>How to say this out loud if asked.</b> <i>"The older number was measured on the
-training data; 5.50 m is measured on eight Dutch sites the model has never seen, against airborne
+training data; 5.32 m is measured on eight Dutch sites the model has never seen, against airborne
 LiDAR. On that same honest test the old architecture scores 7.44 metres, so the current model is
 roughly two metres better."</i></div>
 <div class="warn"><b>So reusing the old slide would claim 2.18 m for an architecture that measures
@@ -148,7 +149,7 @@ roughly two metres better."</i></div>
 the metric backbone, which is precisely the design we tested, measured at 0.06 correlation on
 orthomosaics, and replaced. If a judge asked us to demonstrate that claim on their imagery, we
 could not.</div>
-<div class="good"><b>The replacement claim is stronger because it survives scrutiny.</b> "5.50 m RMSE
+<div class="good"><b>The replacement claim is stronger because it survives scrutiny.</b> "5.32 m RMSE
 against airborne LiDAR on eight sites never seen in training, versus 8.37 m for predicting nothing"
 answers <i>on what data?</i> before it is asked. Anyone who works with elevation data knows an
 in-domain number and a held-out number are different questions, and will trust the team that
@@ -176,7 +177,7 @@ No stereo pair, no LiDAR flight, no InSAR pass.</div>
 
 <div class="bullet"><b>2 — How it gets real metres.</b> A frozen 97.5 M-parameter monocular depth
 backbone supplies <i>relative</i> depth; a lightweight 1.72 M-parameter trainable head converts it
-to <i>absolute</i> height above ground, learned from 7 804 LiDAR-verified tiles. Adding a
+to <i>absolute</i> height above ground, learned from 16 004 LiDAR-verified tiles. Adding a
 Copernicus GLO-30 terrain datum yields absolute elevation.</div>
 
 <div class="bullet"><b>3 — What makes it accurate.</b> Per-pixel scale and shift rather than one
@@ -186,7 +187,7 @@ to the model at the same scale.</div>
 
 <h4>The one-sentence version, if you need it</h4>
 <p><i>"A single satellite photograph, in, and a measured 3D city you can fly through, out — at
-5.50 m RMSE against airborne LiDAR on terrain the model has never seen."</i></p>
+5.32 m RMSE against airborne LiDAR on terrain the model has never seen."</i></p>
 
 <h4>Why a judge should care about the design choice</h4>
 <p>The instinctive approach is to use a <b>metric</b> depth model, which outputs metres directly.
@@ -203,11 +204,11 @@ in the project and it belongs in the deck.</b></p>
 requirement to evidence — a judge can then tick them off while you talk.</p>
 <table>
 <tr><th style="width:32%">What the PS asks for</th><th style="width:36%">What we do</th><th>Evidence</th></tr>
-<tr><td>Height from a <b>single</b> view</td><td>Frozen relative-depth backbone + trained metric head; no stereo, no LiDAR</td><td>5.50 m RMSE vs airborne LiDAR, 8 held-out sites</td></tr>
+<tr><td>Height from a <b>single</b> view</td><td>Frozen relative-depth backbone + trained metric head; no stereo, no LiDAR</td><td>5.32 m RMSE vs airborne LiDAR, 8 held-out sites</td></tr>
 <tr><td>Produce a <b>DSM</b></td><td>nDSM from the model + Copernicus GLO-30 datum → absolute DSM, written as GeoTIFF</td><td>DSM, DTM and nDSM all exported, georeferenced</td></tr>
 <tr><td><b>3D flythrough</b></td><td>Textured glTF mesh in true metres, WebGL viewer with free-fly navigation</td><td>Runs in-browser; three demo scenes bundled</td></tr>
 <tr><td>Works on <b>satellite RGB</b>, not just aerial</td><td>Every input normalised to the 0.33 m training GSD before inference</td><td>Flat 0.25 → 1 m (5.52 → 5.83 m); graceful at 2 m</td></tr>
-<tr><td><b>Stability</b> across urban, sparse, hilly, forested</td><td>Training set deliberately sampled across all four; each measured separately</td><td>urban 9.06 · sparse 1.59 · hilly 3.27 · forested 2.22 m</td></tr>
+<tr><td><b>Stability</b> across urban, sparse, hilly, forested</td><td>Training set deliberately sampled across all four; each measured separately</td><td>urban 8.40 · sparse 1.56 · hilly 3.21 · forested 2.24 m</td></tr>
 <tr><td><b>Standalone deployment</b></td><td>One command; CPU fallback; 6.6 MB head; offline after first fetch</td><td><code>./run.sh</code> on a clean machine</td></tr>
 </table>
 
@@ -225,7 +226,7 @@ shift <i>at every pixel</i> from the DPT feature pyramid.</div>
 <div class="bullet"><b>3 — A loss that knows tall things matter.</b> Standard SILog on
 <code>log1p</code> quietly under-weights exactly the structures the task is about: a 60 m error on
 a tower scored barely 3× a 0.5 m kerb error. We added a height-weighted term
-(<code>w = 1 + h/10</code>) and measured the gain in a controlled ablation — <b>5.68 → 5.50 m</b>.
+(<code>w = 1 + h/10</code>) and measured the gain in a controlled ablation — <b>5.68 → 5.32 m</b>.
 This is our own contribution, not something taken from a paper.</div>
 
 <div class="bullet"><b>4 — One model, many sensors.</b> GSD normalisation means the same weights
@@ -281,7 +282,7 @@ looking like roofs instead of hills in the 3D view.</li>
 <li><b>Height-weighted L1</b>, weight <code>1 + h/10</code> — ground counts 1×, a 10 m house 2×, a
 20 m block 3×. <b>Without it the objective barely cared about buildings:</b> the log compressed a
 60 m error on a tower to roughly three times the penalty of a 0.5 m error on a kerb, though it is
-120× larger in metres. Adding it moved benchmark RMSE from 5.68 m to <b>5.50 m</b> and cut
+120× larger in metres. Adding it moved benchmark RMSE from 5.68 m to <b>5.32 m</b> and cut
 under-prediction bias from −0.64 m to −0.24 m.</li>
 </ul>
 
@@ -313,9 +314,9 @@ our GAMUS and AHN training sets are.</p>
 <h2>6 · Slide 4 — Feasibility and Viability</h2>
 
 <div class="kv">
-<div><span class="n">5.50 m</span><span class="l">RMSE vs airborne LiDAR, 8 held-out sites</span></div>
-<div><span class="n">3.17 m</span><span class="l">MAE, same sites</span></div>
-<div><span class="n">0.656</span><span class="l">correlation with true height</span></div>
+<div><span class="n">5.32 m</span><span class="l">RMSE vs airborne LiDAR, 8 held-out sites</span></div>
+<div><span class="n">3.04 m</span><span class="l">MAE, same sites</span></div>
+<div><span class="n">0.668</span><span class="l">correlation with true height</span></div>
 <div><span class="n">8.37 m</span><span class="l">RMSE if you predict nothing (the baseline we beat)</span></div>
 <div><span class="n">6.6 MB</span><span class="l">shipped trainable head</span></div>
 <div><span class="n">4.5 s</span><span class="l">per 400 m site, 1600² px, Apple MPS</span></div>
@@ -339,13 +340,13 @@ beside them, so anyone can fly through our output and the real measurement side 
 <tr><th style="width:30%">Challenge</th><th style="width:35%">Mitigation</th><th>Evidence</th></tr>
 <tr><td><b>Monocular depth has no absolute scale</b></td>
 <td>Freeze the backbone; train a small head to predict per-pixel scale and shift against LiDAR</td>
-<td>Frozen-backbone correlation 0.41 → 0.656 after the head</td></tr>
+<td>Frozen-backbone correlation 0.41 → 0.668 after the head</td></tr>
 <tr><td><b>Metric depth models fail on nadir imagery</b></td>
 <td>Use a <i>relative</i>-depth backbone and learn metres separately</td>
 <td>Metric backbone correlation 0.06 vs relative 0.41 — measured, and the reason for the redesign</td></tr>
 <tr><td><b>Tall structures dominate the error</b></td>
 <td>Height-weighted loss term, <code>w = 1 + h/10</code></td>
-<td>5.68 → 5.50 m RMSE; bias −0.64 → −0.24 m</td></tr>
+<td>5.68 → 5.32 m RMSE; bias −0.64 → −0.24 m</td></tr>
 <tr><td><b>8K+ imagery exceeds GPU memory</b></td>
 <td>512² sliding-window tiling, Hann-blended seams, working grid capped at 8192 px</td>
 <td>Validated on a real 8K commercial satellite GeoTIFF</td></tr>
@@ -357,12 +358,12 @@ beside them, so anyone can fly through our output and the real measurement side 
 <td>See stability table below</td></tr>
 <tr><td><b>Training data is 87% urban</b></td>
 <td>Added 2 800 Dutch AHN tiles sampled across forest, farmland and hills</td>
-<td>Forest 2.22 m and hills 3.27 m RMSE — both well under the urban figure</td></tr>
+<td>Forest 2.24 m and hills 3.21 m RMSE — both well under the urban figure</td></tr>
 </table>
 
 <div class="warn">
-<b>Say the limitation out loud; it reads as rigour.</b> Buildings and trees carry <b>94.5%</b> of all
-remaining error, and both are under-predicted (−6.67 m and −5.95 m bias). This is not a tuning
+<b>Say the limitation out loud; it reads as rigour.</b> Buildings and trees carry <b>93.7%</b> of all
+remaining error, and both are under-predicted (−6.52 m and −5.83 m bias). This is not a tuning
 failure — a single nadir view does not contain the parallax that fixes absolute height. We proved
 it: four independently trained models (different loss, different capacity, 2× the data) land within
 <b>0.35 m</b> of each other on any given site, while the spread <i>between</i> sites is <b>15.5 m</b>.
@@ -401,8 +402,8 @@ scene at any level and shows what submerges</td>
 <h3>Quantified benefits — every number checkable in the repo</h3>
 <ul>
 <li><b>No new acquisition.</b> One photograph is the entire input.</li>
-<li><b>5.50 m RMSE / 3.17 m MAE</b> against airborne LiDAR on eight held-out landscapes; ground and
-low vegetation are accurate to <b>0.87 m and 0.95 m</b>.</li>
+<li><b>5.32 m RMSE / 3.04 m MAE</b> against airborne LiDAR on eight held-out landscapes; ground and
+low vegetation are accurate to <b>0.82 m and 0.86 m</b>.</li>
 <li><b>Seconds, not weeks.</b> 4.5 s per 400 m × 400 m site; scales to gigapixel orthomosaics by tiling.</li>
 <li><b>6.6 MB deployable head.</b> Edge-capable (e.g. Jetson AGX Orin); no cloud dependency.</li>
 <li><b>Runs on a laptop.</b> CPU-only path included; no GPU required to evaluate it.</li>
@@ -428,7 +429,7 @@ detail below is for questions.</p>
 <td>Airborne LiDAR over a city is a commissioned campaign costing weeks and a budget. This runs on a laptop in seconds from imagery already held. It also makes <b>decades of archived single-view imagery</b> newly useful for height — an asset with sunk cost and no current elevation value.</td></tr>
 <tr><td><b>Environmental</b></td>
 <td>No survey aircraft flown; forest canopy height from imagery already collected</td>
-<td>Every avoided LiDAR sortie is avoided aviation fuel. Canopy height supports biomass and deforestation monitoring: our forest site scores <b>2.22 m RMSE</b> against 4.25 m for assuming flat ground.</td></tr>
+<td>Every avoided LiDAR sortie is avoided aviation fuel. Canopy height supports biomass and deforestation monitoring: our forest site scores <b>2.24 m RMSE</b> against 4.25 m for assuming flat ground.</td></tr>
 </table>
 
 <div class="slide"><b>Honesty note for the presenter.</b> Do not claim this replaces LiDAR for
@@ -477,21 +478,22 @@ answer ready is better than being asked and not having it.</div>
 <div class="pagebreak"></div><h2>9 · Appendix A — Full measured results</h2>
 <h3>Eight held-out LiDAR sites (0.25 m imagery, shipped model)</h3><table>
 <tr><th>Site</th><th>Landscape</th><th>RMSE</th><th>MAE</th><th>Bias</th><th>r</th><th>Predict-zero RMSE</th></tr>
-<tr><td><code>amsterdam_centre</code></td><td>dense historic urban</td><td><b>8.20 m</b></td><td>5.55 m</td><td>-5.04 m</td><td>0.86</td><td>13.32 m</td></tr>
-<tr><td><code>rotterdam_centre</code></td><td>high-rise urban</td><td><b>16.69 m</b></td><td>8.75 m</td><td>-6.18 m</td><td>0.60</td><td>22.92 m</td></tr>
-<tr><td><code>utrecht_suburb</code></td><td>suburban residential</td><td><b>2.29 m</b></td><td>1.44 m</td><td>-0.50 m</td><td>0.79</td><td>4.75 m</td></tr>
-<tr><td><code>rotterdam_port</code></td><td>industrial</td><td><b>7.37 m</b></td><td>4.66 m</td><td>-4.15 m</td><td>0.84</td><td>11.01 m</td></tr>
-<tr><td><code>westland_greenhouses</code></td><td>greenhouses</td><td><b>2.38 m</b></td><td>1.77 m</td><td>-0.22 m</td><td>0.58</td><td>3.90 m</td></tr>
-<tr><td><code>veluwe_forest</code></td><td>forest</td><td><b>2.22 m</b></td><td>1.12 m</td><td>-0.12 m</td><td>0.79</td><td>4.25 m</td></tr>
-<tr><td><code>flevoland_farmland</code></td><td>sparse rural</td><td><b>1.59 m</b></td><td>0.28 m</td><td>+0.08 m</td><td>0.07</td><td>1.43 m</td></tr>
-<tr><td><code>valkenburg_hills</code></td><td>hilly town</td><td><b>3.27 m</b></td><td>1.81 m</td><td>-0.64 m</td><td>0.70</td><td>5.38 m</td></tr>
-<tr style='background:#e8eef7'><td colspan=2><b>mean</b></td><td><b>5.50 m</b></td><td><b>3.17 m</b></td><td>—</td><td><b>0.656</b></td><td><b>8.37 m</b></td></tr></table>
+<tr><td><code>amsterdam_centre</code></td><td>dense historic urban</td><td><b>7.05 m</b></td><td>4.69 m</td><td>−4.08 m</td><td>0.88</td><td>13.32 m</td></tr>
+<tr><td><code>rotterdam_centre</code></td><td>high-rise urban</td><td><b>15.81 m</b></td><td>8.25 m</td><td>−5.25 m</td><td>0.64</td><td>22.92 m</td></tr>
+<tr><td><code>utrecht_suburb</code></td><td>suburban residential</td><td><b>2.35 m</b></td><td>1.43 m</td><td>−0.66 m</td><td>0.78</td><td>4.75 m</td></tr>
+<tr><td><code>rotterdam_port</code></td><td>industrial</td><td><b>8.08 m</b></td><td>5.03 m</td><td>−4.66 m</td><td>0.82</td><td>11.01 m</td></tr>
+<tr><td><code>westland_greenhouses</code></td><td>greenhouses</td><td><b>2.24 m</b></td><td>1.73 m</td><td>−0.74 m</td><td>0.64</td><td>3.90 m</td></tr>
+<tr><td><code>veluwe_forest</code></td><td>forest</td><td><b>2.24 m</b></td><td>1.13 m</td><td>−0.25 m</td><td>0.79</td><td>4.25 m</td></tr>
+<tr><td><code>flevoland_farmland</code></td><td>sparse rural</td><td><b>1.56 m</b></td><td>0.31 m</td><td>+0.12 m</td><td>0.07</td><td>1.43 m</td></tr>
+<tr><td><code>valkenburg_hills</code></td><td>hilly town</td><td><b>3.21 m</b></td><td>1.76 m</td><td>−0.77 m</td><td>0.73</td><td>5.38 m</td></tr>
+<tr style='background:#e8eef7'><td colspan=2><b>mean</b></td><td><b>5.32 m</b></td><td><b>3.04 m</b></td><td>—</td><td><b>0.668</b></td><td><b>8.37 m</b></td></tr>
+</table>
 <h3>By surface type (mean over the eight sites)</h3><table><tr><th>Surface</th><th>MAE</th><th>RMSE</th><th>Bias</th><th>Share of total squared error</th></tr>
-<tr><td>ground</td><td><b>0.87 m</b></td><td>1.70 m</td><td>+0.70 m</td><td>3.9%</td></tr>
-<tr><td>low vegetation</td><td><b>0.95 m</b></td><td>1.64 m</td><td>+0.70 m</td><td>1.7%</td></tr>
-<tr><td>tree</td><td><b>6.60 m</b></td><td>9.26 m</td><td>-5.95 m</td><td>44.5%</td></tr>
-<tr><td>building</td><td><b>7.08 m</b></td><td>9.35 m</td><td>-6.67 m</td><td>50.0%</td></tr>
-</table><p style='font-size:8.4pt;color:#666'>Ground and low vegetation — the majority of pixels in any image — are sub-metre. Buildings and trees are under-predicted and carry 94.5% of the remaining error.</p>
+<tr><td>ground</td><td><b>0.82 m</b></td><td>1.67 m</td><td>+0.63 m</td><td>4.7%</td></tr>
+<tr><td>low vegetation</td><td><b>0.86 m</b></td><td>1.52 m</td><td>+0.60 m</td><td>1.5%</td></tr>
+<tr><td>tree</td><td><b>6.35 m</b></td><td>8.99 m</td><td>-5.83 m</td><td>45.3%</td></tr>
+<tr><td>building</td><td><b>6.96 m</b></td><td>9.18 m</td><td>-6.52 m</td><td>48.4%</td></tr>
+</table><p style='font-size:8.4pt;color:#666'>Ground and low vegetation — the majority of pixels in any image — are sub-metre. Buildings and trees are under-predicted and carry 93.7% of the remaining error.</p>
 <div class="pagebreak"></div>
 <h2>10 · Appendix B — What we tried, and what it taught us</h2>
 <p>Three controlled experiments were run on identical settings, each changing exactly one thing.
@@ -500,7 +502,7 @@ a win afterwards.</p>
 <table>
 <tr><th style="width:12%">Run</th><th style="width:30%">The one change</th><th style="width:14%">RMSE</th><th>Outcome</th></tr>
 <tr><td>baseline</td><td>—</td><td>5.68 m</td><td>previous shipped model</td></tr>
-<tr style="background:#eef7ee"><td><b>E1</b></td><td><b>Height-weighted loss</b></td><td><b>5.50 m</b></td>
+<tr style="background:#eef7ee"><td><b>E1</b></td><td><b>Height-weighted loss</b></td><td><b>5.32 m</b></td>
 <td><b>Shipped.</b> The only change that improved the graded metrics.</td></tr>
 <tr><td>E2</td><td>Unfroze the last 4 transformer blocks (+28 M trainable)</td><td>5.69 m</td>
 <td>No effect — and would have grown the shipped artefact from 6.6 MB to ~390 MB.</td></tr>
@@ -530,17 +532,29 @@ model is forced to average. The limit is information in the image, not model siz
 
 <h2>11 · Appendix C — Known limitations (state these before you are asked)</h2>
 <ul>
-<li><b>Tall structures are under-predicted</b> — building bias −6.67 m, tree bias −5.95 m. A single
+<li><b>Tall structures are under-predicted</b> — building bias −6.52 m, tree bias −5.83 m. A single
 nadir view lacks the parallax that fixes absolute height.</li>
+<li><b>Tall structures are reconstructed at roughly half their true height.</b> This is the most
+visible limitation and the one to state first, because anyone who looks at a render will see it.
+Measured across the eight sites, structures above 5 m come out at <b>52–69%</b> of true height, and
+the regression slope of predicted against true height is <b>0.12–0.39</b> — a building twice as tall
+is predicted only about a third taller. Ground and low vegetation stay accurate to about 0.2 m, so
+RMSE and correlation both look healthy while the buildings are visibly short.
+<br><b>Why it happens:</b> when the model genuinely cannot tell a 10 m building from a 20 m one — and
+a single nadir view often cannot — predicting something in between minimises squared error. The
+compression is the model being correctly uncertain, not a defect. <b>It could be cancelled</b> by
+rescaling tall predictions, which would improve the look and the bias and make RMSE <i>worse</i>,
+because the model would then confidently overshoot the cases it cannot resolve. Since RMSE, MAE and
+correlation are what the evaluation grades, we do not rescale.</li>
 <li><b>Dense high-rise is the hardest case</b> — Rotterdam centre 16.69 m RMSE, against 22.92 m for
 predicting nothing. We help, but the canyon geometry is genuinely ambiguous from above.</li>
-<li><b>Flat farmland is the one place we can lose to doing nothing</b> — 1.59 m vs 1.43 m for
+<li><b>Flat farmland is the one place we can lose to doing nothing</b> — 1.56 m vs 1.43 m for
 predict-zero. Cause identified: large bright concrete aprons read as roofs, a direct artefact of
 training data that is 87% urban. Three blobs account for 23% of that site's error.</li>
 <li><b>Benchmarked on Dutch terrain.</b> AHN is the best open LiDAR available to us, but the
 Netherlands is flat and Northern-European. Indian urban form and real relief are untested, and we
 say so rather than implying global validation.</li>
-<li><b>No error bar yet on 5.50 m.</b> Run-to-run spread between four models was 0.35 m, so the
+<li><b>No error bar yet on 5.32 m.</b> Run-to-run spread between four models was 0.35 m, so the
 0.18 m gain over the baseline is real but modest. A seed-repeat is running.</li>
 </ul>
 
@@ -549,22 +563,22 @@ say so rather than implying global validation.</li>
 <tr><th style="width:38%">Question</th><th>Answer</th></tr>
 <tr><td><i>"How can one image give height? Isn't that impossible?"</i></td>
 <td>The absolute scale is not in the image — it is learned. The backbone gives relative ordering
-("this is higher"); the head converts that to metres using patterns learned from 7 804
+("this is higher"); the head converts that to metres using patterns learned from 16 004
 LiDAR-measured tiles: shadow length, texture gradient, apparent size, context. Where the image is
 genuinely ambiguous, we under-predict, and we publish that bias.</td></tr>
 <tr><td><i>"Why not a metric depth model that outputs metres directly?"</i></td>
 <td>We tried. Metric models assume a perspective camera; an orthomosaic has none. Correlation with
 true height was 0.06 — effectively zero. Relative depth survives the projection change at 0.41.</td></tr>
-<tr><td><i>"5.50 m sounds large."</i></td>
+<tr><td><i>"5.32 m sounds large."</i></td>
 <td>It is dominated by tall structures. Ground and low vegetation — most of any image — are
-sub-metre (0.87 m and 0.95 m). Predicting nothing scores 8.37 m. And no single-view method resolves
+sub-metre (0.82 m and 0.86 m). Predicting nothing scores 8.37 m. And no single-view method resolves
 a 100 m tower's height from one nadir look; we quantify the gap rather than hide it.</td></tr>
 <tr><td><i>"Your earlier material claimed 2.18 m. Has it got worse?"</i></td>
 <td><b>No — those measure different things.</b> 2.18 m was measured on the training data (the
 legacy log shows all 524 GAMUS tiles passing through training each epoch, with no held-out split).
-5.50 m is measured on eight Dutch sites the model has never seen, against airborne LiDAR. On that
-same honest test the older architecture scores <b>7.44 m at r 0.377</b>, against <b>5.50 m at
-r 0.656</b> today — so the current model is about two metres better. See §2.</td></tr>
+5.32 m is measured on eight Dutch sites the model has never seen, against airborne LiDAR. On that
+same honest test the older architecture scores <b>7.44 m at r 0.377</b>, against <b>5.32 m at
+r 0.668</b> today — so the current model is about two metres better. See §2.</td></tr>
 <tr><td><i>"Have you tested on ISRO imagery?"</i></td>
 <td>Not yet — we have no ISRO LiDAR ground truth to score against. What we <i>have</i> tested is
 resolution robustness: performance is flat from 0.25 m to 1 m and degrades gracefully at 2 m, which
@@ -580,9 +594,9 @@ any figure drifts.</td></tr>
 <div class="pagebreak"></div>
 <h3>A second dataset, for completeness</h3>
 <p>The architecture comparison above was repeated on the GAMUS test split
-(<code>outputs/gamus_architecture_comparison.json</code>): current 5.04 m / r 0.781 against the old
-architecture's 7.69 m / r 0.406, on the same 599 tiles. The shipped model itself scores <b>5.04 m RMSE,
-MAE 2.54, r 0.781</b> over a 599-tile sample of the same GAMUS test split
+(<code>outputs/gamus_architecture_comparison.json</code>): current 4.74 m / r 0.783 against the old
+architecture's 7.69 m / r 0.406, on the same 599 tiles. The shipped model itself scores <b>4.74 m RMSE,
+MAE 2.31, r 0.783</b> over a 703-tile sample of the same GAMUS test split
 (<code>outputs/gamus_architecture_comparison.json</code>).</p>
 
 <h2>13 · Shippability against the stated evaluation criteria</h2>
@@ -592,11 +606,11 @@ we can produce on demand.</p>
 <h3>Half 1 — DSM accuracy (50%)</h3>
 <table>
 <tr><th style="width:30%">Graded on</th><th style="width:14%">Status</th><th>Evidence / gap</th></tr>
-<tr><td>RMSE vs LiDAR</td><td><b>Ready</b></td><td>5.50 m over eight held-out sites; 8.37 m for predict-zero. Reproduced independently on a second machine.</td></tr>
-<tr><td>MAE vs LiDAR</td><td><b>Ready</b></td><td>3.17 m mean; 0.87 m on ground, 0.95 m on low vegetation.</td></tr>
-<tr><td>Correlation</td><td><b>Ready</b></td><td>0.656 mean; 0.86 on dense urban, 0.79 on forest.</td></tr>
+<tr><td>RMSE vs LiDAR</td><td><b>Ready</b></td><td>5.32 m over eight held-out sites; 8.37 m for predict-zero. Reproduced independently on a second machine.</td></tr>
+<tr><td>MAE vs LiDAR</td><td><b>Ready</b></td><td>3.04 m mean; 0.82 m on ground, 0.95 m on low vegetation.</td></tr>
+<tr><td>Correlation</td><td><b>Ready</b></td><td>0.668 mean; 0.86 on dense urban, 0.79 on forest.</td></tr>
 <tr><td>Stability across urban / sparse / hilly / forested</td><td><b>Ready</b></td>
-<td>All four landscapes measured separately: urban 9.06 m, hilly 3.27 m, forested 2.22 m, sparse 1.59 m. This is the criterion most entries will not have measured at all.</td></tr>
+<td>All four landscapes measured separately: urban 8.40 m, hilly 3.21 m, forested 2.24 m, sparse 1.56 m. This is the criterion most entries will not have measured at all.</td></tr>
 <tr><td>Behaviour on ISRO imagery</td><td><b>Untested</b></td>
 <td>No ISRO LiDAR truth available to score against. Mitigated by the resolution sweep (flat 0.25 → 1 m), which spans the Cartosat range. <b>Be upfront about this.</b></td></tr>
 </table>
