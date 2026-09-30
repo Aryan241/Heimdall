@@ -98,7 +98,11 @@ Environment variables for the web server: `HEIMDALL_ROOT` (repo path), `HEIMDALL
 # GeoTIFF → absolute DSM (Copernicus GLO-30 terrain fetched automatically)
 python infer.py -i scene.tif -o outputs/
 
-# Your own DEM and ground control points
+# Your own DEM and ground control points.
+# Worth doing for absolute elevation: the auto-fetched global DEM carries ~4.1 m of error on its
+# own, about half a metre of which is a constant geoid offset against the local datum. A single
+# surveyed point removes that (measured: 6.11 m -> 5.63 m absolute DSM across the eight sites).
+# GCP CSV takes lon,lat,z or x,y,z in the image CRS, or row,col,z for a plain image.
 python infer.py -i scene.tif --reference-dem srtm_30m.tif --gcps gcps.csv
 
 # Plain image with known GSD; multispectral product stored as B,G,R,NIR
