@@ -166,3 +166,33 @@ def test_documentation_figures_match_measurements():
     r = subprocess.run([sys.executable, str(repo / "scripts" / "check_report_numbers.py")],
                        capture_output=True, text=True, cwd=repo)
     assert r.returncode == 0, f"documentation has drifted from the measurements:\n{r.stdout}"
+
+
+def test_gsd_override_on_a_georeferenced_file_is_flagged(tmp_path):
+    """Overriding the GSD of a file that states its own rescales the whole scene silently.
+
+    It is easy to do by accident: set a GSD for an ungeoreferenced image, then upload a GeoTIFF
+    without clearing the field. A 0.33 override on a 0.25 m file stretches every distance by 1.32x.
+    """
+    import numpy as np
+    import rasterio
+    from rasterio.transform import from_origin
+    from heimdall.pipeline import PipelineConfig, run
+
+    src = tmp_path / "geo.tif"
+    rng = np.random.default_rng(0)
+    rgb = (rng.random((256, 256, 3)) * 255).astype("uint8")
+    with rasterio.open(src, "w", driver="GTiff", height=256, width=256, count=3,
+                       dtype="uint8", crs="EPSG:28992", transform=from_origin(0, 0, 0.25, 0.25)) as o:
+        o.write(rgb.transpose(2, 0, 1))
+
+    res = run(PipelineConfig(input=str(src), output_dir=str(tmp_path / "out"), name="t",
+                             gsd=0.33, export_mesh=False, events=False, auto_dem=False))
+    meta = json.loads((tmp_path / "out" / "t_meta.json").read_text())
+    assert any("GSD override" in w for w in meta["warnings"]), meta["warnings"]
+
+    clean = run(PipelineConfig(input=str(src), output_dir=str(tmp_path / "out2"), name="t",
+                               export_mesh=False, events=False, auto_dem=False))
+    meta2 = json.loads((tmp_path / "out2" / "t_meta.json").read_text())
+    assert not any("GSD override" in w for w in meta2["warnings"])
+    assert meta2["gsd"]["source"] == "geotransform"

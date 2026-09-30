@@ -312,6 +312,15 @@ export default function Home() {
                 <label>GSD override (m/px)
                   <input type="number" step="0.01" min="0" placeholder="auto" value={opts.gsd}
                     onChange={(e) => setOpts({ ...opts, gsd: e.target.value })} />
+                  {opts.gsd && (
+                    <p className="muted small">
+                      Only needed for images with no coordinate system. A GeoTIFF states its own
+                      scale, and this replaces it.{' '}
+                      <button className="link-btn" onClick={() => setOpts({ ...opts, gsd: '' })}>
+                        Clear
+                      </button>
+                    </p>
+                  )}
                 </label>
                 <label>Band order (R,G,B)
                   <input type="text" placeholder="auto, e.g. 3,2,1" value={opts.bands}

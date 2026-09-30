@@ -136,6 +136,16 @@ def run(cfg: PipelineConfig) -> PipelineResult:
     gsd_info: dict = {}
     if cfg.gsd:
         native_gsd, gsd_info = float(cfg.gsd), {"source": "user"}
+        # A georeferenced file already states its own scale. Overriding it silently rescales the
+        # whole scene - every distance, area and slope - with nothing on screen to say so, which
+        # is easy to do by leaving a value in the form from a previous, ungeoreferenced upload.
+        if georef:
+            file_gsd = gsd_from_geo(geo, native_shape)
+            if file_gsd and abs(native_gsd - file_gsd) / file_gsd > 0.05:
+                warn(f"GSD override {native_gsd:.3f} m/px replaces the {file_gsd:.3f} m/px this file "
+                     f"declares; distances and areas will be scaled by "
+                     f"{native_gsd / file_gsd:.2f}x. Clear the override to use the file's own scale.")
+                gsd_info["file_m"] = file_gsd
     elif georef:
         native_gsd, gsd_info = gsd_from_geo(geo, native_shape), {"source": "geotransform"}
         if is_rotated(geo.transform):
