@@ -24,11 +24,16 @@ VEHICLE_CLASSES = {"small vehicle", "large vehicle"}
 
 
 def detect_vehicles(rgb: np.ndarray, gsd: float, out_shape: tuple[int, int], conf: float = 0.25,
-                    tile: int = 1024) -> tuple[np.ndarray, int]:
+                    tile: int = 1024, classes: set[str] | None = None) -> tuple[np.ndarray, int]:
     """Return (label image on *out_shape* with one id per vehicle, count). 0 = no vehicle.
 
     *rgb* is the native image with ground sample distance *gsd* (m/px).
+
+    *classes* restricts which DOTA classes count. The ground prior wants every vehicle, since
+    any of them marks ground; a caller measuring *scale* from apparent size wants small
+    vehicles only, because a bus, a lorry or a freight car is not 4.6 m long.
     """
+    wanted = VEHICLE_CLASSES if classes is None else classes
     try:
         from ultralytics import YOLO
     except ImportError:
@@ -53,7 +58,7 @@ def detect_vehicles(rgb: np.ndarray, gsd: float, out_shape: tuple[int, int], con
             if res.obb is None:
                 continue
             for cls, pts in zip(res.obb.cls.tolist(), res.obb.xyxyxyxy.cpu().numpy()):
-                if model.names[int(cls)] in VEHICLE_CLASSES:
+                if model.names[int(cls)] in wanted:
                     polys.append(pts + np.array([x0, y0]))
 
     # Rasterise (dedupe overlapping detections from tile overlaps by drawing into one canvas).

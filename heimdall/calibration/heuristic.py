@@ -51,7 +51,8 @@ def estimate_gsd(image: np.ndarray, assumed_car_length_m: float = 4.6,
         return None, {"method": "vehicle-size", "reason": f"{type(exc).__name__}: {exc}"}
 
     try:
-        labels, n = detect_vehicles(image, gsd=_ASSUMED_DETECT_GSD_M, out_shape=image.shape[:2])
+        labels, n = detect_vehicles(image, gsd=_ASSUMED_DETECT_GSD_M, out_shape=image.shape[:2],
+                                    classes={"small vehicle"})
     except Exception as exc:
         logger.warning("Vehicle detection failed during GSD estimation: %s", exc)
         return None, {"method": "vehicle-size", "reason": str(exc)}
