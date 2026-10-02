@@ -156,6 +156,13 @@ def run(cfg: PipelineConfig) -> PipelineResult:
         from heimdall.calibration.heuristic import estimate_gsd
         native_gsd, gsd_info = estimate_gsd(payload.image)
         gsd_info["source"] = "vehicle-size" if native_gsd else "assumed"
+        if native_gsd is not None:
+            # Inferred, not read. It sets every height and distance in the scene, and when it is
+            # wrong nothing on screen looks obviously broken - the model just comes out flat.
+            # Measured on the GAMUS test tiles it reads low, by up to a third, so say so.
+            warn(f"No georeferencing: scale was estimated from vehicle sizes at "
+                 f"{native_gsd:.3f} m/px ({gsd_info.get('detections', 0)} detections). It tends to "
+                 f"read low, which makes everything too short. Set the GSD if you know it.")
         if native_gsd is None:
             native_gsd = TRAINING_GSD_M
             warn(f"No georeferencing and GSD could not be estimated — assuming {TRAINING_GSD_M} m/px "
