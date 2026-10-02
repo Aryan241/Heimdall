@@ -25,10 +25,13 @@ def main() -> int:
     ap.add_argument("--reference", type=Path, required=True, help="Reference height raster (above ground).")
     ap.add_argument("--out-dir", type=Path, required=True)
     ap.add_argument("--stem", required=True, help="Filename stem for the scene's files.")
+    ap.add_argument("--source-label", default="Uploaded reference DSM",
+                    help="How the viewer names this reference; an upload's provenance is unknown.")
     a = ap.parse_args()
 
     from scripts.build_demo_site import build_truth_scene
-    info = build_truth_scene(a.meta.parent, a.out_dir, a.reference, a.stem, meta_path=a.meta)
+    info = build_truth_scene(a.meta.parent, a.out_dir, a.reference, a.stem, meta_path=a.meta,
+                             source_label=a.source_label)
     files = info.get("files", info) if isinstance(info, dict) else {}
     print("@@HEIMDALL " + json.dumps({"event": "truth_scene", "meta": f"{a.stem}_meta.json"}), flush=True)
     return 0

@@ -73,11 +73,15 @@ def _resample_to_grid(src_path: Path, transform, crs_wkt: str, shape: tuple[int,
 
 
 def build_truth_scene(model_dir: Path, out_dir: Path, ahn_ndsm: Path, stem: str,
-                      meta_path: Path | None = None) -> dict:
+                      meta_path: Path | None = None, source_label: str | None = None) -> dict:
     """Clone the model scene with LiDAR heights in place of predicted ones.
 
     *meta_path* lets a caller point at the metadata explicitly; a bundled demo scene names it
     after its own directory, but a web job writes <JOB_NAME>_meta.json instead.
+
+    *source_label* names the reference in the viewer. The bundled scenes know their own
+    provenance; a raster a user uploads could be anything, so that path passes a neutral name
+    rather than claiming AHN.
     """
     import rasterio
     from heimdall.mesh.mesher import build_textured_mesh, export_glb
@@ -108,13 +112,14 @@ def build_truth_scene(model_dir: Path, out_dir: Path, ahn_ndsm: Path, stem: str,
     surface = dtm + ndsm
     valid = np.isfinite(surface)
 
-    src_name = "AHN airborne LiDAR (reference)" if absolute else "GAMUS LiDAR nDSM (reference)"
+    src_name = (f"{source_label} (reference)" if source_label else
+                "AHN airborne LiDAR (reference)" if absolute else "GAMUS LiDAR nDSM (reference)")
     tags = {"product": "absolute_dsm" if absolute else "relative_dsm", "source": src_name}
     files = {
         "dsm": writers.save_geotiff(surface, out_dir / f"{stem}_dsm.tif", transform, crs_wkt,
-                                    "Absolute DSM from AHN LiDAR", valid_mask=valid, tags=tags).name,
+                                    f"Absolute DSM from {source_label or 'AHN LiDAR'}", valid_mask=valid, tags=tags).name,
         "ndsm": writers.save_geotiff(ndsm, out_dir / f"{stem}_ndsm.tif", transform, crs_wkt,
-                                     "Height above ground from AHN LiDAR", valid_mask=valid, tags=tags).name,
+                                     f"Height above ground from {source_label or 'AHN LiDAR'}", valid_mask=valid, tags=tags).name,
     }
     if absolute:
         files["dtm"] = writers.save_geotiff(dtm, out_dir / f"{stem}_dtm.tif", transform, crs_wkt,
@@ -150,9 +155,11 @@ def build_truth_scene(model_dir: Path, out_dir: Path, ahn_ndsm: Path, stem: str,
 
     truth_meta = dict(meta)
     truth_meta.update({
-        "input": "AHN airborne LiDAR",
-        "product_description": "Reference surface measured by airborne LiDAR (AHN, 0.5 m), "
-                               "resampled to the model's working grid.",
+        "input": source_label or "AHN airborne LiDAR",
+        "product_description": (f"{source_label}, resampled to the model's working grid."
+                                if source_label else
+                                "Reference surface measured by airborne LiDAR (AHN, 0.5 m), "
+                                "resampled to the model's working grid."),
         "mode": "reference",
         "model": None,
         "weights": None,
