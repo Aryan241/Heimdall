@@ -126,7 +126,9 @@ Outputs (`<name>_*`): `dsm.tif` / `rdsm.tif`, `ndsm.tif`, `dtm.tif`, `height16.p
 > **Measured accuracy.** Against airborne LiDAR over 8 held-out Dutch landscapes
 > (`scripts/benchmark_ahn.py`): **5.32 m** mean nDSM RMSE, **r = 0.67**, versus 8.37 m for
 > predicting zero everywhere. On the **absolute DSM** — the quantity the problem setters say they evaluate — **6.11 m**, of which the Copernicus terrain datum contributes 4.12 m on its own; a single ground control point removes the constant datum offset and brings it to 5.63 m. At the stated evaluation resolution of 0.6 m, **5.51 m**. On a 703-tile sample of the held-out GAMUS test split: **4.74 m** RMSE, **2.31 m**
-> MAE, **r = 0.75**, versus an 8.67 m predict-zero baseline. Training recipe and the full
+> MAE, **r = 0.78**, versus an 8.59 m predict-zero baseline. That GAMUS figure scores the decoder
+> head alone on centre crops (`scripts/eval_gamus.py`); the full pipeline, with tiled inference and
+> refinement, scores better, so it is a conservative number rather than a flattering one. Training recipe and the full
 > breakdown: [docs/TRAINING.md](docs/TRAINING.md).
 
 ```bash
