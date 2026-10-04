@@ -64,6 +64,22 @@ def _by_gsd(rows: list, variant: str = "raw") -> list[dict]:
     return out
 
 
+def _ckpt_val_rmse() -> float | None:
+    """The shipped checkpoint's own validation RMSE, read from the file rather than restated.
+
+    It was previously pulled from a key the GAMUS report does not carry, so it published as
+    null while the tile count beside it was a stale literal from an earlier head.
+    """
+    path = REPO / "checkpoints" / "decoder" / "decoder_best.pth"
+    if not path.exists():
+        return None
+    try:
+        import torch
+        return float(torch.load(path, map_location="cpu", weights_only=False)["val"]["rmse"])
+    except Exception:
+        return None
+
+
 def main() -> int:
     ahn = _load(REPO / "outputs" / "benchmark_ahn" / "results.json") or []
     gsd = _load(REPO / "outputs" / "benchmark_gsd" / "results.json") or []
@@ -73,8 +89,8 @@ def main() -> int:
     payload = {
         "generated": __import__("datetime").date.today().isoformat(),
         "model": {"backbone": "Depth Anything V2 Base (frozen)", "head": "multi-scale DPT-pyramid decoder",
-                  "trained_on": "7 804 tiles — GAMUS + Dutch AHN LiDAR at 0.33 m and 1 m",
-                  "val_rmse": (gamus or {}).get("training", {}).get("val_rmse")},
+                  "trained_on": "16 004 tiles — GAMUS + Dutch AHN LiDAR at 0.33 m and 1 m",
+                  "val_rmse": _ckpt_val_rmse()},
         "lidar_sites": _sites(rows),
         "by_gsd": _by_gsd(rows),
         "gamus_test": None,
