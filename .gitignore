@@ -96,3 +96,12 @@ heimdall-web/*.md
 # superseded v1 report. Kept on disk, not part of the deliverable.
 docs/presentation/
 outputs/legacy_docs/
+
+# Scratch scripts from an unrelated lunar-imagery experiment; kept on disk only.
+/crop_lunar_data.py
+/fetch_moon_data.py
+/fix_wms.py
+/get_links.py
+/get_lunar_data.py
+/get_wms_layers.py
+/data/moon_surface/
