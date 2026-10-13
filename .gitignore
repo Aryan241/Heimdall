@@ -76,8 +76,6 @@ outputs/benchmark_gsd/*
 !outputs/gamus_test.json
 !outputs/gamus_architecture_comparison.json
 !outputs/evaluation_envelope.json
-!outputs/legacy_docs/
-!outputs/legacy_docs/*.md
 
 # Bundled demo scene for the web viewer.
 !heimdall-web/public/demo/*.tif
@@ -94,7 +92,7 @@ heimdall-web/.next/
 heimdall-web/*.md
 !heimdall-web/README.md
 
-# Internal narration script for the demo video - not part of the deliverable.
-docs/presentation/demo_video_script.html
-docs/presentation/DepthWizard_Demo_Video_Script.pdf
-docs/presentation/Heimdall_Script*.docx
+# Internal preparation material - scripts, slide-support packs and the
+# superseded v1 report. Kept on disk, not part of the deliverable.
+docs/presentation/
+outputs/legacy_docs/
