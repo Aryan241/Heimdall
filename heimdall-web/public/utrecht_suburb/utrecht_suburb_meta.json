@@ -133,8 +133,8 @@
     "total": 22.8
   },
   "config": {
-    "input": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/outputs/demo_sites/utrecht_suburb/ortho_0.25m.tif",
-    "output_dir": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall-web/public/utrecht_suburb",
+    "input": "ortho_0.25m.tif",
+    "output_dir": "utrecht_suburb",
     "name": "utrecht_suburb",
     "weights": "decoder_best.pth",
     "model_key": null,

@@ -101,8 +101,8 @@
     "total": 8.72
   },
   "config": {
-    "input": "/private/tmp/claude-501/-Users-aryanachary--gemini-antigravity-ide-scratch-Heimdall/cf114bab-ec25-49b6-be7b-c181bc0ad9c7/scratchpad/GAMUS_test/images/test/PHL_5094_RGB.jpg",
-    "output_dir": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall-web/public/gamus_philadelphia",
+    "input": "PHL_5094_RGB.jpg",
+    "output_dir": "gamus_philadelphia",
     "name": "gamus_philadelphia",
     "weights": "decoder_best.pth",
     "model_key": null,

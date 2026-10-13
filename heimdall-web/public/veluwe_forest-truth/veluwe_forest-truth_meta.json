@@ -126,8 +126,8 @@
     "total": 25.91
   },
   "config": {
-    "input": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/outputs/demo_sites/veluwe_forest/ortho_0.25m.tif",
-    "output_dir": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall-web/public/veluwe_forest",
+    "input": "ortho_0.25m.tif",
+    "output_dir": "veluwe_forest",
     "name": "veluwe_forest",
     "weights": "decoder_best.pth",
     "model_key": null,

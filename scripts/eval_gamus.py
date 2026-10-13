@@ -4,7 +4,7 @@ import sys, json, argparse
 from pathlib import Path
 import numpy as np, torch
 REPO = Path(__file__).resolve().parent
-sys.path.insert(0, "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall")
+sys.path.insert(0, str(REPO.parent))
 from torch.utils.data import DataLoader
 from heimdall.decoder.dataset import RemoteSensingHeightDataset
 from heimdall.decoder.model import load_wrapper

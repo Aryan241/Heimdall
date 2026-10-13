@@ -133,8 +133,8 @@
     "total": 23.37
   },
   "config": {
-    "input": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/outputs/demo_sites/valkenburg_hills/ortho_0.25m.tif",
-    "output_dir": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall-web/public/valkenburg_hills",
+    "input": "ortho_0.25m.tif",
+    "output_dir": "valkenburg_hills",
     "name": "valkenburg_hills",
     "weights": "decoder_best.pth",
     "model_key": null,

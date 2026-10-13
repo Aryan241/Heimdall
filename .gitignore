@@ -86,3 +86,9 @@ outputs/benchmark_gsd/*
 # Stray Next dev cache created when the workspace root changed
 heimdall-web/heimdall-web/
 decoder_best_kaggle.zip
+
+# Build artefacts and AI-assistant tooling files — never shipped to reviewers.
+.next/
+heimdall-web/.next/
+CLAUDE.md
+AGENTS.md

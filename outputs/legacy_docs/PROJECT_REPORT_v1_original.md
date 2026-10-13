@@ -115,13 +115,13 @@ Heimdall operates as an integrated 9-stage modular pipeline, taking raw satellit
 ### Detailed Component Walkthrough
 
 #### Stage 1: Geospatial Ingestion
-* **Implementation**: [`loader.py`](file:///Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall/ingestion/loader.py)
+* **Implementation**: [`loader.py`](../../heimdall/ingestion/loader.py)
 * Inspects incoming payload metadata. For standard formats (`.png`, `.jpg`), it loads standard 8-bit RGB channels.
 * For satellite `.tif` / GeoTIFF files, it leverages `rasterio` to parse the Coordinate Reference System (e.g., EPSG:32632 UTM or EPSG:4326 WGS84), the Affine Transform Matrix, and calculates Ground Sample Distance (GSD in meters per pixel).
 * Automatically prepares image tiling buffers for large satellite scenes exceeding model input resolutions.
 
 #### Stage 2: Foundation Vision Backbone (Depth Anything V3)
-* **Implementation**: [`depth_anything.py`](file:///Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall/depth/depth_anything.py) and [`depth_anything_3/`](file:///Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/depth_anything_3)
+* **Implementation**: [`depth_anything.py`](../../heimdall/depth/depth_anything.py) and [`depth_anything_3/`](../../depth_anything_3)
 * Utilizes the state-of-the-art **Depth Anything V3 Metric-Large** transformer model.
 * All 335M+ backbone weights remain **strictly frozen** during training. This preserves the generalized monocular visual priors learned across tens of millions of natural and outdoor scenes, eliminating catastrophic forgetting.
 * **Dual Tensor Output**: The frozen backbone produces a dictionary output:
@@ -131,7 +131,7 @@ Heimdall operates as an integrated 9-stage modular pipeline, taking raw satellit
 * **Current Consumption vs. Strategic Improvement**: Currently, Heimdall pipes `depth` directly into Stage 3 while `depth_conf` is retained in memory but unconsumed downstream. This represents a significant upcoming capability: `depth_conf` can be passed to the loss function to dynamically mask or downweight low-confidence pixels (such as specular water surfaces, deep shadow troughs, and cloud edges) during training, preventing ambiguous regions from destabilizing the gradient updates.
 
 #### Stage 3: Domain Adaptation Head with ASPP
-* **Implementation**: [`head.py`](file:///Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall/decoder/head.py) and [`model.py`](file:///Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall/decoder/model.py)
+* **Implementation**: [`head.py`](../../heimdall/decoder/head.py) and [`model.py`](../../heimdall/decoder/model.py)
 * Operates on a 4-channel fused tensor: `[Red, Green, Blue, Relative_Depth]`.
 * Incorporates **Atrous Spatial Pyramid Pooling (ASPP)** with parallel dilated convolutions at dilation rates of 1, 6, 12, and 18, alongside global average pooling.
 * Rather than predicting height through raw unconstrained regression, the head predicts two spatial matrices:
@@ -142,22 +142,22 @@ Heimdall operates as an integrated 9-stage modular pipeline, taking raw satellit
 * Initialized with identity affine properties (scale bias = 1.0, shift bias = 0.0). The `ReLU` activation guarantees the physical reality that terrain heights cannot be negative.
 
 #### Stage 4: Semantic Ground Segmentation
-* **Implementation**: [`segformer.py`](file:///Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall/segmentation/segformer.py)
+* **Implementation**: [`segformer.py`](../../heimdall/segmentation/segformer.py)
 * Deploys a SegFormer-B0 architecture trained on ADE20K to segment ground classes: roads, sidewalks, grass, earth, fields, and sand.
 * Isolate non-building ground planes to provide an unambiguous baseline datum for terrain normalization and RANSAC calibration.
 
 #### Stage 5: Reference DEM RANSAC Scale Calibration
-* **Implementation**: [`ransac.py`](file:///Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall/calibration/ransac.py)
+* **Implementation**: [`ransac.py`](../../heimdall/calibration/ransac.py)
 * When a coarse, low-resolution public DEM (such as SRTM 30m or Copernicus 30m) is provided, Heimdall samples up to 10,000 spatial coordinates and computes a robust RANSAC affine fit to align relative estimates with the reference elevation datum, rejecting building outliers.
 
 #### Stage 6: Heuristic Calibration (Zero-Reference Mode)
-* **Implementation**: [`heuristic.py`](file:///Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall/calibration/heuristic.py)
+* **Implementation**: [`heuristic.py`](../../heimdall/calibration/heuristic.py)
 * For uncalibrated reconnaissance imagery where no reference DEM exists:
   * Runs YOLOv8n vehicle detection to identify parked cars. Using standard automotive dimensions (~4.5 meters), it automatically calculates the image Ground Sample Distance (GSD).
   * Uses a robust percentile range (`p2` to `p98`) to eliminate noise spikes, scaling terrain relative to scene characteristics and estimated GSD.
 
 #### Stage 7: Geospatial Output Writers
-* **Implementation**: [`writers.py`](file:///Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall/output/writers.py)
+* **Implementation**: [`writers.py`](../../heimdall/output/writers.py)
 * Produces four distinct output formats:
   1. `_depth16.png`: 16-bit grayscale PNG storing elevation across 65,536 discrete intensity levels.
   2. `_depth_vis.png`: High-contrast Inferno colormap rendering for human inspection.
@@ -165,13 +165,13 @@ Heimdall operates as an integrated 9-stage modular pipeline, taking raw satellit
   4. `_depth.npy`: Uncompressed NumPy float32 matrix for scientific computing.
 
 #### Stage 8: 3D Surface Reconstruction & Meshing
-* **Implementation**: [`mesher.py`](file:///Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall/mesh/mesher.py)
+* **Implementation**: [`mesher.py`](../../heimdall/mesh/mesher.py)
 * Converts 2D metric heightmaps into 3D polygonal triangulations (`trimesh`).
 * Assigns real-world X/Y millimeter coordinates using GSD and maps the original satellite RGB pixels directly to 3D mesh vertices.
 * Exports clean, textured `.ply` and `.obj` meshes ready for 3D engines, CAD, and 3D printing.
 
 #### Stage 9: Interactive Web Application
-* **Implementation**: [`heimdall-web/`](file:///Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall-web)
+* **Implementation**: [`heimdall-web/`](../../heimdall-web)
 * Developed with **Next.js 14**, **React Three Fiber (R3F)**, and **Three.js**.
 * Provides a professional web-based Mission Control interface:
   * Dynamic orbit flythrough and directional sun-shadow rendering.
@@ -289,7 +289,7 @@ Live telemetry extracted from the Kaggle training run demonstrates stable, conti
 
 ## 5. Quantitative Evaluation Framework
 
-Heimdall includes an automated evaluation harness in [`eval.py`](file:///Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/eval.py) implementing standard international benchmarks for metric depth estimation:
+Heimdall includes an automated evaluation harness in [`eval.py`](../../eval.py) implementing standard international benchmarks for metric depth estimation:
 
 ### Evaluation Metrics Defined
 1. **RMSE (Root Mean Squared Error)**: Measures overall metric distance error in meters:

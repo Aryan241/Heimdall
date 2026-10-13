@@ -101,8 +101,8 @@
     "total": 9.95
   },
   "config": {
-    "input": "/private/tmp/claude-501/-Users-aryanachary--gemini-antigravity-ide-scratch-Heimdall/cf114bab-ec25-49b6-be7b-c181bc0ad9c7/scratchpad/GAMUS_test/images/test/DC_09_29_RGB.jpg",
-    "output_dir": "/Users/aryanachary/.gemini/antigravity-ide/scratch/Heimdall/heimdall-web/public/gamus_washington_dc",
+    "input": "DC_09_29_RGB.jpg",
+    "output_dir": "gamus_washington_dc",
     "name": "gamus_washington_dc",
     "weights": "decoder_best.pth",
     "model_key": null,
